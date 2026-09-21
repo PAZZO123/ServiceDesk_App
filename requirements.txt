@@ -1,0 +1,60 @@
+# ============================================================
+#  ServiceDesk - production dependencies
+# ============================================================
+#  NOTE ON VERSIONS: no version numbers are pinned here yet.
+#  We install the latest, confirm everything works, and THEN
+#  freeze exact versions into requirements.lock.txt (Step 2b).
+#
+#  This is the direct fix for the bug in your Bookly project,
+#  where requirements.txt was generated from the wrong virtual
+#  environment and was missing almost every real dependency.
+#  Nobody - including future you - could reproduce that setup.
+# ============================================================
+
+# ---- Web framework -----------------------------------------
+fastapi                 # the framework itself
+uvicorn[standard]       # the ASGI server that runs it.
+                        # [standard] pulls in uvloop/httptools where
+                        # available, plus websockets support, which we
+                        # need on Day 6. Without [standard] the
+                        # WebSocket endpoints simply will not work.
+
+# ---- Database ----------------------------------------------
+sqlalchemy[asyncio]     # the ORM. [asyncio] enables async engines.
+asyncpg                 # the async PostgreSQL driver SQLAlchemy talks
+                        # through. NOT psycopg2 - that one is sync and
+                        # would block the event loop on every query.
+alembic                 # database migrations (schema version control)
+
+# ---- Validation & settings ---------------------------------
+pydantic                # request/response validation
+pydantic-settings       # reads configuration from environment vars
+email-validator         # makes Pydantic's EmailStr type work.
+                        # Without it, EmailStr raises an ImportError.
+
+# ---- Security (Day 2) --------------------------------------
+passlib[bcrypt]         # password hashing
+pyjwt                   # creating and verifying JWT tokens
+itsdangerous            # signed, EXPIRING tokens for email
+                        # verification and password reset links
+python-multipart        # required for form data - the OAuth2 login
+                        # form and file uploads both need this
+
+# ---- Email (Day 2, moved to Celery on Day 7) ---------------
+aiosmtplib              # async SMTP client
+jinja2                  # HTML email templates
+
+# ---- Files (Day 5) -----------------------------------------
+aiofiles                # async file read/write, so large uploads do
+                        # not block the event loop
+python-magic-bin        # detects a file's REAL type from its magic
+                        # bytes. Windows needs the -bin variant;
+                        # on Linux/Mac it is plain python-magic.
+
+# ---- Realtime, cache, queue (Days 6-7) ---------------------
+redis                   # cache + pub/sub + Celery broker
+celery                  # background task queue
+sse-starlette           # Server-Sent Events responses
+httpx                   # outbound HTTP for webhooks (also used by
+                        # the test client)
+slowapi                 # rate limiting

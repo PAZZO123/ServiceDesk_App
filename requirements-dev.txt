@@ -1,0 +1,12 @@
+# ============================================================
+#  Development-only dependencies.
+#  Kept separate so the production Docker image stays small -
+#  there is no reason to ship pytest to a server.
+# ============================================================
+-r requirements.txt      # include everything from the main file
+
+pytest                   # the test runner
+pytest-asyncio           # lets pytest run "async def" test functions
+pytest-cov               # coverage reporting
+anyio                    # async test utilities FastAPI relies on
+faker                    # generates fake users/tickets for test data

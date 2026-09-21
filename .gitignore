@@ -1,0 +1,26 @@
+# Secrets - the single most important line in this file
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Uploads - user files do not belong in version control
+uploads/*
+!uploads/.gitkeep
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Editors
+.vscode/
+.idea/

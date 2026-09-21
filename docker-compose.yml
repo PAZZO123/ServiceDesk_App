@@ -1,0 +1,57 @@
+
+#  Start everything:   docker compose up -d
+#  Stop everything:    docker compose down
+#  Stop AND DELETE DATA: docker compose down -v
+
+name: servicedesk
+
+services:
+  postgres:
+    image: postgres:16-alpine
+
+    container_name: servicedesk_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s      # check every 5 seconds
+      timeout: 5s       # each check must answer within 5s
+      retries: 10       # 10 failures in a row = unhealthy
+      start_period: 10s # grace period at boot; failures here
+                        # are not counted against retries
+  redis:
+    image: redis:7-alpine
+
+    container_name: servicedesk_redis
+
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
