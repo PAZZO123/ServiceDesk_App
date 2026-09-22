@@ -1,17 +1,17 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     REQUESTER="requester"
     AGENT="agent"
     ADMIN="admin"
     
-class TeamRole(str, Enum):
+class TeamRole(StrEnum):
     MEMBER="member"
     LEAD="lead"
     
     
-class TicketStatus(str, Enum):
+class TicketStatus(StrEnum):
     OPEN="open"
     IN_PROGRESS="in_progress"
     WAITING="waiting"
@@ -19,13 +19,13 @@ class TicketStatus(str, Enum):
     CLOSED="closed"
     
     
-class TicketPriority(str, Enum):
+class TicketPriority(StrEnum):
     LOW="low"
     MEDIUM="medium"
     HIGH="high"
     URGENT="urgent"
     
-class NotificationType(str, Enum):
+class NotificationType(StrEnum):
     TICKET_ASSIGNED="ticket_assigned"
     TICKET_STATUS_CHANGED="ticket_status_changed"
     COMMENT_ADDED="comment_added"

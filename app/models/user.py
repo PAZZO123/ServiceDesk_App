@@ -1,15 +1,19 @@
+import uuid
 from typing import TYPE_CHECKING
-from sqlalchemy import Boolean , Enum as SAEnum, ForeignKey, String, Text
+
+from sqlalchemy import Boolean, ForeignKey, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.db.base import Base , TimestampMixin, UUIDPrimaryKeyMixin
+
+from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import UserRole
-import uuid
 
 if TYPE_CHECKING:
     from app.models.audit import Notification, RefreshToken
-    from app.models.team import TeamMemberShip
+    from app.models.team import TeamMembership
     from app.models.ticket import Comment, Ticket
+    
     
     
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):

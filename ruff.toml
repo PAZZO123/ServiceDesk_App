@@ -1,0 +1,39 @@
+# Ruff configuration - linter and formatter.
+
+target-version = "py312"
+line-length = 88
+
+# Never lint generated or vendored code.
+exclude = [".venv", "alembic/versions", "frontend"]
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes - REAL bugs: undefined names, unused imports
+    "I",    # isort - import ordering
+    "B",    # flake8-bugbear - likely mistakes (mutable defaults, etc.)
+    "UP",   # pyupgrade - modernise old syntax
+    "RUF",  # ruff's own rules
+]
+
+ignore = [
+    "E501",    # line too long - the formatter handles wrapping
+    "B008",    # function call in default argument.
+               # FastAPI REQUIRES this pattern: Depends(get_db) as a
+               # default value. Without this ignore, ruff flags every
+               # single endpoint you write.
+]
+
+[lint.per-file-ignores]
+# app/models/__init__.py imports models purely so they register
+# themselves with Base.metadata. They ARE unused by design - that is
+# the entire purpose of the file.
+"app/models/__init__.py" = ["F401"]
+
+# Tests re-import fixtures and shadow names constantly.
+"tests/*" = ["F811"]
+
+[lint.isort]
+known-first-party = ["app"]
+# Groups your own imports separately from third-party ones, so the
+# import block reads: stdlib / third-party / app.

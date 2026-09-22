@@ -1,5 +1,4 @@
 
-import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, Column, ForeignKey, String, Table

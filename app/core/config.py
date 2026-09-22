@@ -73,7 +73,7 @@ class Settings(BaseSettings):
                 "one with: python -c \"import secrets; "
                 "print(secrets.token_urlsafe(48))\""
             )
-            return v
+        return v
     
     @property
     def max_upload_bytes(self)->int:
