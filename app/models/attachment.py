@@ -1,4 +1,3 @@
-
 import uuid
 from typing import TYPE_CHECKING
 
@@ -44,7 +43,6 @@ class Attachment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     uploader: Mapped["User"] = relationship()
     __table_args__ = (
         CheckConstraint(
-    
             "num_nonnulls(ticket_id, comment_id) = 1",
             name="exactly_one_parent",
         ),

@@ -13,7 +13,7 @@ from app.models.team import Category, Team, TeamMembership
 from app.models.ticket import Comment, Ticket
 from app.models.user import User, UserProfile
 
-__all__= [
+__all__ = [
     "Attachment",
     "AuditLog",
     "Base",

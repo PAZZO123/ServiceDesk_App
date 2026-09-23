@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -27,7 +26,6 @@ if TYPE_CHECKING:
 
 
 class Team(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-
     __tablename__ = "teams"
 
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)

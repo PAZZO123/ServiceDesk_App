@@ -1,5 +1,3 @@
-
-
 import uuid
 from datetime import datetime
 
@@ -33,16 +31,15 @@ class UserCreate(APISchema):
 
 
 class UserUpdate(APISchema):
-
     full_name: str | None = Field(default=None, min_length=2, max_length=120)
 
 
 class UserProfileUpdate(APISchema):
-
     timezone: str | None = Field(default=None, max_length=64)
     notify_email: bool | None = None
     notify_in_app: bool | None = None
     signature: str | None = Field(default=None, max_length=2000)
+
 
 class UserPublic(APISchema):
     id: uuid.UUID

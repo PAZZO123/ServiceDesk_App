@@ -1,4 +1,3 @@
-
 from pydantic import EmailStr, Field, model_validator
 
 from app.schemas.common import APISchema, PasswordStr
@@ -10,26 +9,31 @@ class TokenPair(APISchema):
     refresh_token: str
 
     token_type: str = "bearer"
-    expires_in: int = Field(
-        description="Seconds until the access token expires."
-    )
-   
+    expires_in: int = Field(description="Seconds until the access token expires.")
+
 
 class RefreshRequest(APISchema):
-
     refresh_token: str = Field(min_length=10)
+
 
 class RegisterResponse(APISchema):
     message: str
     user: UserRead
 
 
+class TokenRequest(APISchema):
+    token: str = Field(min_length=10)
+
+
 class EmailRequest(APISchema):
     email: EmailStr = Field(max_length=255)
+
     @model_validator(mode="after")
     def normalise(self) -> "EmailRequest":
         self.email = self.email.lower()
         return self
+
+
 class PasswordResetConfirm(APISchema):
     token: str = Field(min_length=10, description="From the emailed link.")
     new_password: PasswordStr
@@ -37,7 +41,7 @@ class PasswordResetConfirm(APISchema):
 
     @model_validator(mode="after")
     def passwords_must_match(self) -> "PasswordResetConfirm":
-        
+
         if self.new_password != self.confirm_password:
             raise ValueError("The two passwords do not match.")
         return self

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to {{ app_name }}{% endblock %}
+
+{% block content %}
+  <h1 style="font-size:20px; margin:0 0 16px;">Your account is ready</h1>
+
+  <p style="line-height:1.6; margin:0 0 16px;">
+    Hello {{ full_name }},
+  </p>
+
+  <p style="line-height:1.6; margin:0 0 20px;">
+    Your email address has been confirmed and your {{ app_name }}
+    account is now active.
+  </p>
+
+  <p style="line-height:1.6; margin:0 0 8px; font-weight:600;">
+    What you can do:
+  </p>
+  <ul style="line-height:1.8; margin:0 0 24px; padding-left:20px;
+             color:#334155;">
+    <li>Report a problem and attach screenshots</li>
+    <li>Follow your ticket as the support team works on it</li>
+    <li>Reply directly on the ticket instead of chasing by email</li>
+  </ul>
+
+  <p style="margin:0;">
+    <a href="{{ link }}"
+       style="display:inline-block; background:#1f4e79; color:#ffffff;
+              text-decoration:none; padding:12px 24px; border-radius:6px;
+              font-weight:600;">
+      Sign in
+    </a>
+  </p>
+{% endblock %}

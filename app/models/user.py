@@ -13,11 +13,10 @@ if TYPE_CHECKING:
     from app.models.audit import Notification, RefreshToken
     from app.models.team import TeamMembership
     from app.models.ticket import Comment, Ticket
-    
-    
-    
+
+
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-    __tablename__="users"
+    __tablename__ = "users"
     email: Mapped[str] = mapped_column(
         String(255),
         unique=True,
@@ -49,18 +48,17 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    
-    
-    profile: Mapped["UserProfile"]= relationship(
+
+    profile: Mapped["UserProfile"] = relationship(
         back_populates="user",
-        uselist=False, 
+        uselist=False,
         cascade="all, delete-orphan",
-        lazy="selectin"
+        lazy="selectin",
     )
-    
+
     tickets_requested: Mapped[list["Ticket"]] = relationship(
         back_populates="requester",
-        foreign_keys="Ticket.requester_id",   # note: a STRING
+        foreign_keys="Ticket.requester_id",  # note: a STRING
     )
 
     tickets_assigned: Mapped[list["Ticket"]] = relationship(
@@ -84,12 +82,12 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan",
     )
-    
-    def __repr__(self)->str:
-        return f"<User {self.email} ({self.role.value})>"
-    
-class UserProfile(Base, TimestampMixin):
 
+    def __repr__(self) -> str:
+        return f"<User {self.email} ({self.role.value})>"
+
+
+class UserProfile(Base, TimestampMixin):
     __tablename__ = "user_profiles"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -102,7 +100,9 @@ class UserProfile(Base, TimestampMixin):
     )
 
     timezone: Mapped[str] = mapped_column(
-        String(64), nullable=False, default="Africa/Kigali",
+        String(64),
+        nullable=False,
+        default="Africa/Kigali",
         server_default="Africa/Kigali",
     )
 

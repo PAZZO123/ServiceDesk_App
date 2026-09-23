@@ -13,19 +13,18 @@ NAMING_CONVENTION = {
     "pk": "pk_%(table_name)s",
 }
 
+
 class Base(DeclarativeBase):
-    metadata= MetaData(naming_convention=NAMING_CONVENTION)
-    
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
 class UUIDPrimaryKeyMixin:
     id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
-    
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    
+
+
 class TimestampMixin:
-    
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -38,9 +37,10 @@ class TimestampMixin:
         onupdate=func.now(),
         nullable=False,
     )
-    
+
+
 class SoftDeleteMixin:
-     deleted_at: Mapped[datetime | None] = mapped_column(
+    deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
         default=None,

@@ -74,7 +74,7 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         nullable=False,
         index=True,
     )
- 
+
     requester_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("users.id", ondelete="RESTRICT"),
@@ -168,7 +168,6 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         back_populates="tickets",
     )
 
-
     __table_args__ = (
         Index(
             "ix_tickets_queue",
@@ -194,7 +193,6 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
 
 
 class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-
     __tablename__ = "comments"
 
     ticket_id: Mapped[uuid.UUID] = mapped_column(
@@ -218,7 +216,6 @@ class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
 
-
     body: Mapped[str] = mapped_column(Text, nullable=False)
 
     is_internal: Mapped[bool] = mapped_column(
@@ -230,7 +227,7 @@ class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     parent: Mapped["Comment | None"] = relationship(
         "Comment",
         back_populates="replies",
-        remote_side="Comment.id",   # same pattern as merged_into
+        remote_side="Comment.id",  # same pattern as merged_into
     )
     replies: Mapped[list["Comment"]] = relationship(
         "Comment",

@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import UTC, datetime
 
@@ -7,21 +6,12 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import (
-    AccountDisabled,
-    AccountNotVerified,
-    InvalidCredentials,
-    InvalidToken,
-    TokenReuseDetected,
-)
-from app.core.security import (
-    TokenType,
-    create_access_token,
-    create_refresh_token,
-    decode_token,
-    hash_password,
-    verify_password,
-)
+from app.core.exceptions import (AccountDisabled, AccountNotVerified,
+                                 InvalidCredentials, InvalidToken,
+                                 TokenReuseDetected)
+from app.core.security import (TokenType, create_access_token,
+                               create_refresh_token, decode_token,
+                               hash_password, verify_password)
 from app.models.audit import RefreshToken
 from app.models.user import User
 from app.schemas.auth import TokenPair
@@ -43,14 +33,12 @@ class AuthService:
         user = await self.users.get_by_email(email)
 
         if user is None:
-            
             await hash_password(password)
             raise InvalidCredentials()
 
         if not await verify_password(password, user.hashed_password):
             raise InvalidCredentials()
 
-        
         if not user.is_active:
             raise AccountDisabled()
 
@@ -91,7 +79,7 @@ class AuthService:
         return TokenPair(
             access_token=access,
             refresh_token=refresh,
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=settings.ACCES_TOKEN_EXPIRE_MINUTES * 60,
         )
 
     async def rotate_refresh_token(
@@ -108,7 +96,6 @@ class AuthService:
 
         jti: str = payload["jti"]
         user_id = uuid.UUID(payload["sub"])
-
 
         stored = await self.db.scalar(
             select(RefreshToken).where(RefreshToken.jti == jti)
@@ -151,7 +138,7 @@ class AuthService:
         await self.db.commit()
 
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:
-        
+
         await self.db.execute(
             update(RefreshToken)
             .where(

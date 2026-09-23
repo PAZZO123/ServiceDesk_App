@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class AppError(Exception):
-
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
     code: str = "internal_error"
     message: str = "Something went wrong."
@@ -23,7 +22,7 @@ class AppError(Exception):
         code: str | None = None,
         status_code: int | None = None,
     ) -> None:
-       
+
         self.message = message or self.message
         self.code = code or self.code
         self.status_code = status_code or self.status_code
@@ -35,6 +34,7 @@ class AppError(Exception):
         if self.details:
             body["details"] = self.details
         return body
+
 
 class NotFoundError(AppError):
     status_code = status.HTTP_404_NOT_FOUND
@@ -51,13 +51,16 @@ class TicketNotFound(NotFoundError):
     code = "ticket_not_found"
     message = "Ticket not found."
 
+
 class TeamNotFound(NotFoundError):
     code = "team_not_found"
     message = "Team not found."
 
+
 class CategoryNotFound(NotFoundError):
     code = "category_not_found"
     message = "Category not found."
+
 
 class ConflictError(AppError):
     status_code = status.HTTP_409_CONFLICT
@@ -79,6 +82,7 @@ class InvalidStatusTransition(ConflictError):
     code = "invalid_status_transition"
     message = "That status change is not allowed."
 
+
 class AuthenticationError(AppError):
     status_code = status.HTTP_401_UNAUTHORIZED
     code = "not_authenticated"
@@ -90,7 +94,6 @@ class InvalidCredentials(AuthenticationError):
     message = "Incorrect email or password."
 
 
-
 class InvalidToken(AuthenticationError):
     code = "invalid_token"
     message = "The token is invalid or has expired."
@@ -99,6 +102,7 @@ class InvalidToken(AuthenticationError):
 class TokenReuseDetected(AuthenticationError):
     code = "token_reuse_detected"
     message = "Session revoked for security reasons. Please sign in again."
+
 
 class PermissionDenied(AppError):
     status_code = status.HTTP_403_FORBIDDEN
@@ -116,6 +120,7 @@ class AccountDisabled(AppError):
     status_code = status.HTTP_403_FORBIDDEN
     code = "account_disabled"
     message = "This account has been disabled. Contact your administrator."
+
 
 class BadRequest(AppError):
     status_code = status.HTTP_400_BAD_REQUEST
@@ -135,7 +140,7 @@ class RateLimited(AppError):
 
 
 class FileTooLarge(AppError):
-    status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
     code = "file_too_large"
     message = "The uploaded file is too large."
 
@@ -144,7 +149,6 @@ class UnsupportedFileType(AppError):
     status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
     code = "unsupported_file_type"
     message = "That file type is not allowed."
-
 
 
 def _envelope(error_body: dict[str, Any], request: Request) -> dict[str, Any]:
@@ -172,7 +176,6 @@ async def validation_error_handler(
 ) -> JSONResponse:
     fields = [
         {
-          
             "field": ".".join(str(part) for part in err["loc"][1:]) or "body",
             "message": err["msg"],
             "type": err["type"],
@@ -204,10 +207,8 @@ async def http_exception_handler(
     )
 
 
-async def unhandled_exception_handler(
-    request: Request, exc: Exception
-) -> JSONResponse:
-   
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+
     logger.exception(
         "unhandled_exception path=%s method=%s",
         request.url.path,
@@ -230,4 +231,3 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
-    

@@ -1,4 +1,3 @@
-
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -27,7 +26,6 @@ if TYPE_CHECKING:
 
 
 class AuditLog(Base):
-
     __tablename__ = "audit_logs"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -64,7 +62,6 @@ class AuditLog(Base):
 
 
 class Notification(Base, UUIDPrimaryKeyMixin):
-
     __tablename__ = "notifications"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -105,13 +102,13 @@ class Notification(Base, UUIDPrimaryKeyMixin):
             postgresql_where=text("read_at IS NULL"),
         ),
     )
+
     def __repr__(self) -> str:
         state = "unread" if self.read_at is None else "read"
         return f"<Notification {self.type.value} ({state})>"
 
 
 class RefreshToken(Base, UUIDPrimaryKeyMixin):
-  
     __tablename__ = "refresh_tokens"
 
     user_id: Mapped[uuid.UUID] = mapped_column(

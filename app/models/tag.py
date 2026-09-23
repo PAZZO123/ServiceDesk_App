@@ -1,4 +1,3 @@
-
 from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, Column, ForeignKey, String, Table
@@ -30,7 +29,6 @@ ticket_tags = Table(
 
 
 class Tag(Base, UUIDPrimaryKeyMixin, TimestampMixin):
-
     __tablename__ = "tags"
 
     name: Mapped[str] = mapped_column(
