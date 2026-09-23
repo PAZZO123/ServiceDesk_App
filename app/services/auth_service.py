@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
 
 import jwt
 from sqlalchemy import select, update
@@ -138,6 +138,8 @@ class AuthService:
         await self.db.commit()
 
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:
+        """Log a user out of every device, immediately."""
+        now = datetime.now(timezone.utc)
 
         await self.db.execute(
             update(RefreshToken)
@@ -145,18 +147,21 @@ class AuthService:
                 RefreshToken.user_id == user_id,
                 RefreshToken.revoked_at.is_(None),
             )
-            .values(revoked_at=datetime.now(UTC))
+            .values(revoked_at=now)
         )
+
+        await self.db.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(sessions_valid_from=now)
+        )
+
         await self.db.commit()
 
     async def logout(self, raw_token: str) -> None:
+       
         try:
             payload = decode_token(raw_token, TokenType.REFRESH)
         except jwt.PyJWTError:
             return
-
-        stored = await self.db.scalar(
-            select(RefreshToken).where(RefreshToken.jti == payload["jti"])
-        )
-        if stored is not None:
-            await self._revoke_family(stored.family_id)
+        await self.revoke_all_for_user(uuid.UUID(payload["sub"]))

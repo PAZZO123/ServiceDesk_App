@@ -1,24 +1,23 @@
+import ipaddress
 import uuid
 from typing import Annotated
 
 import jwt
 from fastapi import Depends, Request
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import (HTTPAuthorizationCredentials, HTTPBearer,
+                              OAuth2PasswordBearer)
 from sqlalchemy.ext.asyncio import AsyncSession
-import ipaddress
 
-from app.core.exceptions import (
-    AccountDisabled,
-    AccountNotVerified,
-    InvalidToken,
-    PermissionDenied,
-)
+from app.core.exceptions import (AccountDisabled, AccountNotVerified,
+                                 AuthenticationError, InvalidToken,
+                                 PermissionDenied)
 from app.core.security import TokenType, decode_token
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.user import User
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
+from datetime import datetime, timezone
 
 # Database
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -39,12 +38,30 @@ AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
 # Authentication
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",
-    scheme_name="ServiceDesk",
+    scheme_name="sign with email an password",
+    auto_error=False,
 )
 
+bearer_scheme=HTTPBearer(
+    scheme_name="Paste an existing token",
+    description=(
+        "Paste and access token directly . Useful for testind expired"
+        "tokens , another user's token, or a refresh tokenen (whiCh must be rejected)."
+    ),
+    auto_error=False,
+)
+
+async def get_token(
+    form_token:Annotated[str| None, Depends(oauth2_scheme)],
+    pasted:Annotated[HTTPAuthorizationCredentials |None, Depends(bearer_scheme)]
+)->str:
+    token=form_token or (pasted.credentials if pasted else None)
+    if not token:
+        raise AuthenticationError("Authorization header missing.")
+    return token
 
 async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)], users: UserSvc
+    token: Annotated[str, Depends(get_token)], users: UserSvc
 ) -> User:
     try:
         payload = decode_token(token, TokenType.ACCESS)
@@ -63,6 +80,10 @@ async def get_current_user(
 
     if not user.is_active:
         raise AccountDisabled()
+    if user.sessions_valid_from is not None:
+        issued_at = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
+    if issued_at < user.sessions_valid_from:
+        raise InvalidToken("This session has been ended.")
 
     return user
 
