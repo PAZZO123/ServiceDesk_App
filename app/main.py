@@ -1,9 +1,9 @@
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, status
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse
@@ -12,7 +12,8 @@ from app.api.v1.auth import router as auth_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
-from fastapi import FastAPI, Response, status
+from app.api.v1.catalog import router as catalog_router
+from app.api.v1.ticket import router as tickets_router
 
 logging.basicConfig(
     level=logging.INFO if settings.DEBUG else logging.WARNING,
@@ -99,10 +100,6 @@ async def root() -> RedirectResponse:
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.ENVIRONMENT}
 
-
-from fastapi import FastAPI, Response, status
-
-
 @app.get("/health/ready", tags=["System"], summary="Readiness probe")
 async def readiness(response: Response) -> dict[str, object]:
     db_ok = await check_database_connection()
@@ -116,3 +113,5 @@ async def readiness(response: Response) -> dict[str, object]:
  
 #  ROUTERS
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(tickets_router, prefix=settings.API_V1_PREFIX)
+app.include_router(catalog_router,prefix=settings.API_V1_PREFIX )

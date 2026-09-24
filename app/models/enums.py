@@ -16,7 +16,7 @@ class TicketStatus(StrEnum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
     WAITING = "waiting"
-    RESOLVEd = "resolved"
+    RESOLVED = "resolved"
     CLOSED = "closed"
 
 

@@ -1,23 +1,30 @@
 import ipaddress
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 import jwt
 from fastapi import Depends, Request
-from fastapi.security import (HTTPAuthorizationCredentials, HTTPBearer,
-                              OAuth2PasswordBearer)
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+    OAuth2PasswordBearer,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import (AccountDisabled, AccountNotVerified,
-                                 AuthenticationError, InvalidToken,
-                                 PermissionDenied)
+from app.core.exceptions import (
+    AccountDisabled,
+    AccountNotVerified,
+    AuthenticationError,
+    InvalidToken,
+    PermissionDenied,
+)
 from app.core.security import TokenType, decode_token
 from app.db.session import get_db
 from app.models.enums import UserRole
 from app.models.user import User
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
-from datetime import datetime, timezone
 
 # Database
 DbSession = Annotated[AsyncSession, Depends(get_db)]
@@ -81,7 +88,7 @@ async def get_current_user(
     if not user.is_active:
         raise AccountDisabled()
     if user.sessions_valid_from is not None:
-        issued_at = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
+        issued_at = datetime.fromtimestamp(payload["iat"], tz=UTC)
     if issued_at < user.sessions_valid_from:
         raise InvalidToken("This session has been ended.")
 
@@ -114,7 +121,6 @@ def require_roles(*allowed: UserRole):
 
 RequireAgent = Annotated[User, Depends(require_roles(UserRole.AGENT, UserRole.ADMIN))]
 RequireAdmin = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
-import ipaddress
 
 
 def _valid_ip(value: str | None) -> str | None:

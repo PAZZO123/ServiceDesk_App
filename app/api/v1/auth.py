@@ -1,10 +1,11 @@
 from typing import Annotated
+
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
+
 from app.api.deps import (
     AuthSvc,
     ClientInfo,
-    CurrentUser,
     UserSvc,
     VerifiedUser,
 )

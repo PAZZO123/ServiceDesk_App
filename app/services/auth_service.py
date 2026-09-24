@@ -1,17 +1,26 @@
 import uuid
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 
 import jwt
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import (AccountDisabled, AccountNotVerified,
-                                 InvalidCredentials, InvalidToken,
-                                 TokenReuseDetected)
-from app.core.security import (TokenType, create_access_token,
-                               create_refresh_token, decode_token,
-                               hash_password, verify_password)
+from app.core.exceptions import (
+    AccountDisabled,
+    AccountNotVerified,
+    InvalidCredentials,
+    InvalidToken,
+    TokenReuseDetected,
+)
+from app.core.security import (
+    TokenType,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    verify_password,
+)
 from app.models.audit import RefreshToken
 from app.models.user import User
 from app.schemas.auth import TokenPair
@@ -139,7 +148,7 @@ class AuthService:
 
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> None:
         """Log a user out of every device, immediately."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         await self.db.execute(
             update(RefreshToken)
