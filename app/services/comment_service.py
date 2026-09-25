@@ -7,8 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.core import storage
 from app.core.exceptions import BadRequest, CommentNotFound
 from app.core.permissions import TicketPermissions
+from app.models.attachment import Attachment
 from app.models.audit import AuditLog, Notification
 from app.models.enums import NotificationType
 from app.models.ticket import Comment, Ticket
@@ -183,10 +185,19 @@ class CommentService:
             },
             ip_address=ip_address,
         )
+        paths=list(
+            await self.db.scalars(
+                select(Attachment.storage_path).where(
+                    Attachment.comment_id== comment.id
+                )
+            )
+        )
 
         await self.db.delete(comment)
         
         await self.db.commit()
+        for path in paths:
+            storage.delete_file(path)
 #Internals
     def _notify(self, ticket: Ticket, comment: Comment, author: User) -> None:
         recipients: set[uuid.UUID | None]

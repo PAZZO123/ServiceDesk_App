@@ -7,9 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import PermissionDenied, TicketNotFound
 from app.models.enums import TicketStatus, UserRole
 from app.models.team import TeamMembership
-from app.models.ticket import Ticket, Comment
+from app.models.ticket import Comment, Ticket
 from app.models.user import User
-
 
 REQUESTER_EDITABLE_STATES:frozenset[TicketStatus]=frozenset(
     {TicketStatus.OPEN, TicketStatus.WAITING}

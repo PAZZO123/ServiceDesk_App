@@ -5,13 +5,20 @@ from typing import Annotated
 
 import jwt
 from fastapi import Depends, Request
-from fastapi.security import (HTTPAuthorizationCredentials, HTTPBearer,
-                              OAuth2PasswordBearer)
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+    OAuth2PasswordBearer,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import (AccountDisabled, AccountNotVerified,
-                                 AuthenticationError, InvalidToken,
-                                 PermissionDenied)
+from app.core.exceptions import (
+    AccountDisabled,
+    AccountNotVerified,
+    AuthenticationError,
+    InvalidToken,
+    PermissionDenied,
+)
 from app.core.permissions import TicketPermissions, load_team_ids
 from app.core.security import TokenType, decode_token
 from app.db.session import get_db

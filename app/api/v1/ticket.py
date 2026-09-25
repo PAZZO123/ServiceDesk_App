@@ -8,9 +8,16 @@ from app.core.exceptions import TicketNotFound
 from app.models.ticket import Ticket
 from app.schemas.comment import CommentCreate
 from app.schemas.common import Page, PaginationParams
-from app.schemas.ticket import (AssignRequest, StatusChange, TagsUpdate,
-                                TicketCreate, TicketFilters, TicketListItem,
-                                TicketRead, TicketUpdate)
+from app.schemas.ticket import (
+    AssignRequest,
+    StatusChange,
+    TagsUpdate,
+    TicketCreate,
+    TicketFilters,
+    TicketListItem,
+    TicketRead,
+    TicketUpdate,
+)
 from app.services.comment_service import CommentService
 from app.services.ticket_service import TicketService
 

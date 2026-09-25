@@ -8,9 +8,13 @@ from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from app.core.exceptions import (BadRequest, CategoryNotFound,
-                                 InvalidStatusTransition, TicketNotFound,
-                                 UserNotFound)
+from app.core.exceptions import (
+    BadRequest,
+    CategoryNotFound,
+    InvalidStatusTransition,
+    TicketNotFound,
+    UserNotFound,
+)
 from app.models.audit import AuditLog, Notification
 from app.models.enums import NotificationType, TicketStatus, UserRole
 from app.models.tag import Tag
@@ -18,8 +22,13 @@ from app.models.team import Category, TeamMembership
 from app.models.ticket import Ticket
 from app.models.user import User
 from app.schemas.common import PaginationParams
-from app.schemas.ticket import (SortOrder, TicketCreate, TicketFilters,
-                                TicketSortField, TicketUpdate)
+from app.schemas.ticket import (
+    SortOrder,
+    TicketCreate,
+    TicketFilters,
+    TicketSortField,
+    TicketUpdate,
+)
 
 ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.OPEN: {
@@ -63,7 +72,7 @@ class TicketService:
             )
         )
 
-    def _conditions(self, filters: TicketFilters) -> list:
+    def conditions(self, filters: TicketFilters) -> list:
         conditions = []
 
         if filters.status is not None:
@@ -133,7 +142,7 @@ class TicketService:
         *,
         extra_conditions: list | None = None,
     ) -> tuple[list[Ticket], int]:
-        conditions = self._conditions(filters)
+        conditions = self.conditions(filters)
         if extra_conditions:
             conditions.extend(extra_conditions)
         count_stmt = (
@@ -161,7 +170,7 @@ class TicketService:
         *,
         extra_conditions: list | None = None,
     ) -> tuple[list[Ticket], str | None]:
-        conditions = self._conditions(filters)
+        conditions = self.conditions(filters)
         if extra_conditions:
             conditions.extend(extra_conditions)
 

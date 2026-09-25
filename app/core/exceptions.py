@@ -153,7 +153,10 @@ class CommentNotFound(NotFoundError):
     code = "comment_not_found"
     message = "Comment not found."
 
-
+class AttachmentNotFound(NotFoundError):
+    code = "attachment_not_found"
+    message = "Attachment not found."
+    
 def _envelope(error_body: dict[str, Any], request: Request) -> dict[str, Any]:
     request_id = getattr(request.state, "request_id", None)
     if request_id:
