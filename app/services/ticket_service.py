@@ -1,32 +1,25 @@
 
 import base64
 import uuid
-from datetime import datetime
-
-from sqlalchemy import Select, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
-
-from app.core.exceptions import TicketNotFound
-from app.models.ticket import Ticket
-from app.schemas.common import PaginationParams
-from app.schemas.ticket import SortOrder, TicketFilters, TicketSortField
-
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import Select, func, or_, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
-from app.core.exceptions import (
-    CategoryNotFound,
-    InvalidStatusTransition,
-    TicketNotFound,
-)
+from app.core.exceptions import (BadRequest, CategoryNotFound,
+                                 InvalidStatusTransition, TicketNotFound,
+                                 UserNotFound)
 from app.models.audit import AuditLog, Notification
-from app.models.enums import NotificationType, TicketStatus
-from app.models.team import Category
+from app.models.enums import NotificationType, TicketStatus, UserRole
+from app.models.tag import Tag
+from app.models.team import Category, TeamMembership
+from app.models.ticket import Ticket
 from app.models.user import User
-from app.schemas.ticket import TicketCreate, TicketUpdate
+from app.schemas.common import PaginationParams
+from app.schemas.ticket import (SortOrder, TicketCreate, TicketFilters,
+                                TicketSortField, TicketUpdate)
 
 ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.OPEN: {
@@ -66,6 +59,7 @@ class TicketService:
                 joinedload(Ticket.assignee),
                 joinedload(Ticket.category),
                 joinedload(Ticket.team),
+                selectinload(Ticket.tags),
             )
         )
 
@@ -235,7 +229,7 @@ class TicketService:
     
     
     async def _next_reference(self) -> str:
-        year = datetime.now(timezone.utc).year
+        year = datetime.now(UTC).year
         lock_key = hash(f"ticket_reference:{year}") % (2**31)
 
         await self.db.execute(
@@ -264,13 +258,14 @@ class TicketService:
         requester: User,
         *,
         ip_address: str | None = None,
+        commit:bool=True
     ) -> Ticket:
         category = await self.db.get(Category, data.category_id)
 
         if category is None:
             raise CategoryNotFound()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         ticket = Ticket(
             reference=await self._next_reference(),
@@ -301,7 +296,8 @@ class TicketService:
             ip_address=ip_address,
         )
         await self._notify_team(ticket, category)
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
         return await self.require_by_id(ticket.id)
 
 
@@ -371,7 +367,7 @@ class TicketService:
         ticket.status = new_status
 
        
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         if new_status == TicketStatus.RESOLVED and ticket.resolved_at is None:
             ticket.resolved_at = now
@@ -399,7 +395,7 @@ class TicketService:
         if ticket.deleted_at is not None:
             return  
 
-        ticket.deleted_at = datetime.now(timezone.utc)
+        ticket.deleted_at = datetime.now(UTC)
 
         self._add_audit(
             actor_id=actor.id,
@@ -410,6 +406,110 @@ class TicketService:
         )
 
         await self.db.commit()
+    
+    async def assign(
+        self,
+        ticket:Ticket,
+        assignee_id:uuid.UUID|None,
+        actor:User,
+        *,
+        ip_address:str |None=None
+    )->Ticket:
+        previous_id=ticket.assignee_id
+        if assignee_id==previous_id:
+            return ticket
+        assignee:User|None=None
+        if assignee_id is not None:
+            assignee= await self.db.get(User, assignee_id)
+            if assignee is None:
+                raise UserNotFound()
+            if not assignee.is_active:
+                raise BadRequest("That account is disabled and cannont own tickets.")
+            if assignee.role == UserRole.REQUESTER:
+                raise BadRequest(" Only Agents and administrators can be assigned tickets")
+            if assignee.role != UserRole.ADMIN:
+                membership=await self.db.scalar(
+                    select(TeamMembership.user_id).where(
+                        TeamMembership.user_id == assignee.id,
+                        TeamMembership.team_id == ticket.team_id
+                    )
+                )
+                if membership is not None:
+                    raise BadRequest(
+                         f"{assignee.full_name} is not a member of the team "
+                        "this ticket is queued to."
+                    )
+                    
+        ticket.assignee_id=assignee_id
+        self._add_audit(
+            actor_id=actor.id,
+            entity_id=ticket.id,
+            action="assigned " if assignee_id is not None else "unassigned",
+            changes={
+                "assignee_id":{
+                    "from":str(previous_id) if previous_id else None,
+                    "to":str(assignee_id) if assignee_id  else None,
+                }
+            },
+            ip_address=ip_address
+        )
+        
+        if assignee is not None and assignee.id != actor.id:
+            self.db.add(
+                Notification(
+                    user_id=assignee.id,
+                    type=NotificationType.TICKET_ASSIGNED,
+                    payload={
+                        "ticket_id": str(ticket.id),
+                        "reference": ticket.reference,
+                        "title": ticket.title,
+                        "priority": ticket.priority.value,
+                        "assigned_by": actor.full_name,
+                    },
+                )
+            )
+            await self.db.commit()
+        return await self.require_by_id(ticket.id)
+    
+    async def set_tags(
+        self,
+        ticket:Ticket,
+        tag_ids:list[uuid.UUID],
+        actor:User,
+        *,
+        ip_address:str |None=None
+    )->Ticket:
+        unique_ids =set(tag_ids)
+        tags:list[Tag]=[]
+        if unique_ids:
+            rows=await self.db.scalars(select(Tag).where(Tag.id.in_(unique_ids)))
+            tags=list(rows)
+            missing=unique_ids-{t.id for t in tags}
+            if missing:
+                raise BadRequest(
+                    "Unknown tag ids:"+",".join(str(m) for m in sorted(missing))
+                )
+            
+        before ={t.name for t in ticket.tags}
+        after={t.name for t in tags}
+        if before == after:
+            return ticket
+        ticket.tags=tags
+        self._add_audit(
+            actor_id=actor.id,
+            entity_id=ticket.id,
+            action="tags_changed",
+            changes={
+                "added":sorted(after-before),
+                "removed":sorted(before-after),
+            },
+            ip_address=ip_address
+        )
+        await self.db.commit()
+        return await self.require_by_id(ticket.id)
+                    
+        
+    
     def _add_audit(
         self,
         *,

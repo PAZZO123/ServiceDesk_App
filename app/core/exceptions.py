@@ -149,6 +149,9 @@ class UnsupportedFileType(AppError):
     status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
     code = "unsupported_file_type"
     message = "That file type is not allowed."
+class CommentNotFound(NotFoundError):
+    code = "comment_not_found"
+    message = "Comment not found."
 
 
 def _envelope(error_body: dict[str, Any], request: Request) -> dict[str, Any]:

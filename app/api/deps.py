@@ -5,20 +5,14 @@ from typing import Annotated
 
 import jwt
 from fastapi import Depends, Request
-from fastapi.security import (
-    HTTPAuthorizationCredentials,
-    HTTPBearer,
-    OAuth2PasswordBearer,
-)
+from fastapi.security import (HTTPAuthorizationCredentials, HTTPBearer,
+                              OAuth2PasswordBearer)
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import (
-    AccountDisabled,
-    AccountNotVerified,
-    AuthenticationError,
-    InvalidToken,
-    PermissionDenied,
-)
+from app.core.exceptions import (AccountDisabled, AccountNotVerified,
+                                 AuthenticationError, InvalidToken,
+                                 PermissionDenied)
+from app.core.permissions import TicketPermissions, load_team_ids
 from app.core.security import TokenType, decode_token
 from app.db.session import get_db
 from app.models.enums import UserRole
@@ -45,14 +39,14 @@ AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
 # Authentication
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",
-    scheme_name="sign with email an password",
+    scheme_name="sign with email and password",
     auto_error=False,
 )
 
 bearer_scheme=HTTPBearer(
     scheme_name="Paste an existing token",
     description=(
-        "Paste and access token directly . Useful for testind expired"
+        "Paste and access token directly. Useful for testind expired"
         "tokens , another user's token, or a refresh tokenen (whiCh must be rejected)."
     ),
     auto_error=False,
@@ -89,8 +83,8 @@ async def get_current_user(
         raise AccountDisabled()
     if user.sessions_valid_from is not None:
         issued_at = datetime.fromtimestamp(payload["iat"], tz=UTC)
-    if issued_at < user.sessions_valid_from:
-        raise InvalidToken("This session has been ended.")
+        if issued_at < user.sessions_valid_from:
+            raise InvalidToken("This session has been ended.")
 
     return user
 
@@ -122,6 +116,11 @@ def require_roles(*allowed: UserRole):
 RequireAgent = Annotated[User, Depends(require_roles(UserRole.AGENT, UserRole.ADMIN))]
 RequireAdmin = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
 
+async def get_permissions(user: VerifiedUser, db: DbSession) -> TicketPermissions:
+    return TicketPermissions(user=user, team_ids=await load_team_ids(db, user))
+
+Perms = Annotated[TicketPermissions, Depends(get_permissions)]
+
 
 def _valid_ip(value: str | None) -> str | None:
     if not value:
@@ -134,6 +133,7 @@ def _valid_ip(value: str | None) -> str | None:
 
 
 async def get_client_info(request: Request) -> dict[str, str | None]:
+    ip: str | None
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         ip = forwarded.split(",")[0].strip()

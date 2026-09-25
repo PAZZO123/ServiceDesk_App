@@ -59,12 +59,33 @@ class TicketUpdate(APISchema):
     category_id: uuid.UUID | None = None
     extra_data: dict[str, Any] | None = None
     
+class TagBrief(APISchema):
+    id: uuid.UUID
+    name: str
+    color: str
+    
 class StatusChange(APISchema):
     status: TicketStatus
     comment:str|None=Field(
         default=None,
         max_length=1000,
         description="Optional note explaining the change"
+    )
+class AssignRequest(APISchema):
+    assignee_id: uuid.UUID | None = Field(
+        default=None,
+        description="Who should own this ticket. Send null to unassign.",
+    )
+
+
+class TagsUpdate(APISchema):
+    tag_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+        max_length=10,
+        description=(
+            "The complete set of tags for this ticket. "
+            "This REPLACES the current tags - send the full list every time."
+        ),
     )
     
 class TicketListItem(APISchema):
@@ -82,6 +103,7 @@ class TicketListItem(APISchema):
     assignee: UserPublic | None = None
     category: CategoryBrief
     team: TeamBrief
+    tags: list[TagBrief] = Field(default_factory=list)
     
 class TicketRead(TicketListItem):
     description: str
@@ -104,6 +126,8 @@ class TicketSortField(StrEnum):
 class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
+    
+
     
 class TicketFilters(APISchema):
     status: TicketStatus | None = Query(

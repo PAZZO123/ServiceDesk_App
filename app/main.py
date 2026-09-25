@@ -9,11 +9,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.catalog import router as catalog_router
+from app.api.v1.comments import router as comments_router
+from app.api.v1.teams import router as teams_router
+from app.api.v1.ticket import router as tickets_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
-from app.api.v1.catalog import router as catalog_router
-from app.api.v1.ticket import router as tickets_router
 
 logging.basicConfig(
     level=logging.INFO if settings.DEBUG else logging.WARNING,
@@ -115,3 +117,5 @@ async def readiness(response: Response) -> dict[str, object]:
 app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
 app.include_router(tickets_router, prefix=settings.API_V1_PREFIX)
 app.include_router(catalog_router,prefix=settings.API_V1_PREFIX )
+app.include_router(comments_router, prefix=settings.API_V1_PREFIX)
+app.include_router(teams_router, prefix=settings.API_V1_PREFIX)
