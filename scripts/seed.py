@@ -1,11 +1,13 @@
 import argparse
 import asyncio
-from sqlalchemy import select
-from app.db.session import AsyncSessionLocal, engine
-from app.models.enums import UserRole
-from app.models.team import Team, Category
-from app.models.user import User
 
+from sqlalchemy import func, select
+
+from app.db.session import AsyncSessionLocal, engine
+from app.models.enums import SystemRole
+from app.models.role import Role
+from app.models.team import Category, Team
+from app.models.user import User
 
 #The Data
 TEAMS:list[tuple[str, str, str]]=[
@@ -66,16 +68,16 @@ async def seed_teams(db)->dict[str, Team]:
 
 async def seed_categories(db, teams:dict[str, Team])->None:
     result= await db.execute(select(Category))
-    existing={category.name for category in result.scalars().all()}
+    existing={(category.team_id, category.name) for category in result.scalars().all()}
     created=0
     for name , team_slug, sla_hours, description in CATEGORIES:
-        if name in existing:
-            continue
         team=teams.get(team_slug)
         if team is None:
             raise ValueError(
                 f"Category {name!r} references unkown team slug {team_slug}"
             )
+        if (team.id, name) in existing:
+            continue
         db.add(
             Category(
                 name=name,
@@ -90,30 +92,34 @@ async def seed_categories(db, teams:dict[str, Team])->None:
         f"categories: {created} created,"
         f"{len(CATEGORIES)- created} already present."
     )
-    
-    
-async def promote_user(db, email:str, role: UserRole)-> None:
-    user = await db.scalar(select(User).where(User.email == email.lower()))
+
+
+async def promote_user(db, email:str, role_name: str)-> None:
+    user = await db.scalar(select(User).where(func.lower(User.email) == email.lower()))
     if user is None:
         print(f" promote  : no user found with this email {email!r}")
         return
-    previous=user.role
+    role = await db.scalar(select(Role).where(Role.name == role_name))
+    if role is None:
+        print(f" promote  : no role named {role_name!r} (run: alembic upgrade head)")
+        return
+    previous=user.role.name
     user.role=role
-    print(f" promote : {email} {previous.value} -> { role.value}")
-    
+    print(f" promote : {email} {previous} -> {role.name}")
+
 
 async def main( promote_email: str| None, promote_role: str|None)->None:
     print("\n Seeding reference data....")
-    
+
     async with AsyncSessionLocal() as db:
         teams= await seed_teams(db)
         await seed_categories(db, teams)
         if promote_email and promote_role:
-            await promote_user(db, promote_email, UserRole(promote_role))
+            await promote_user(db, promote_email, promote_role)
         await db.commit()
     await engine.dispose()
     print("Done. ")
-    
+
 if __name__ == "__main__":
     parser =argparse.ArgumentParser(description="Seed ServiceDesk reference data.")
     parser.add_argument(
@@ -123,12 +129,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--role",
-        choices=[r.value for r in UserRole],
+        choices=[r.value for r in SystemRole],
         default='admin',
         help="Role to grant (default: admin)."
     )
     args=parser.parse_args()
     asyncio.run(main(args.promote, args.role))
-    
-    
-    

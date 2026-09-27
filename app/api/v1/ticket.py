@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import ClientInfo, DbSession, Perms
-from app.core.exceptions import TicketNotFound
+from app.core.exceptions import PermissionDenied, TicketNotFound
 from app.models.ticket import Ticket
 from app.schemas.comment import CommentCreate
 from app.schemas.common import Page, PaginationParams
@@ -130,7 +130,10 @@ async def create_ticket(
     perms: Perms,
     client: ClientInfo,
 ) -> Ticket:
-  
+    if data.priority is not None and not perms.can_set_priority():
+        raise PermissionDenied(
+            "Only support staff can set a priority. Leave it empty and the support team will set it."
+        )
     return await svc.create(
         data,
         requester=perms.user,

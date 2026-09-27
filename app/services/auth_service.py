@@ -67,7 +67,7 @@ class AuthService:
         if family_id is None:
             family_id = uuid.uuid4()
 
-        access = create_access_token(user_id=user.id, role=user.role.value)
+        access = create_access_token(user_id=user.id, role=user.role.name)
 
         refresh, jti, expires_at = create_refresh_token(
             user_id=user.id, family_id=family_id

@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import ClientInfo, DbSession, RequireAdmin, VerifiedUser
+from app.api.deps import ClientInfo, DbSession, RequireTeamManager, VerifiedUser
 from app.schemas.team import MemberAdd, MemberRead, MemberUpdate
 from app.services.team_services import TeamService
 
@@ -31,7 +31,7 @@ async def list_members(
     "/{team_id}/members",
     response_model=MemberRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Ass someone in the team",
+    summary="Add someone to the team",
       responses={
         400: {"description": "That user cannot be a team member"},
         409: {"description": "Already in this team"},
@@ -41,11 +41,11 @@ async def add_member(
     team_id:uuid.UUID,
     data:MemberAdd,
     svc:TeamSvc,
-    admin:RequireAdmin,
+    manager:RequireTeamManager,
     client:ClientInfo,
 ):
     team=await svc.require_team(team_id)
-    return await svc.add_member(team, data, actor=admin, ip_address=client["ip_address"])
+    return await svc.add_member(team, data, actor=manager, ip_address=client["ip_address"])
 
 @router.patch(
     "/{team_id}/members/{user_id}",
@@ -57,7 +57,7 @@ async def set_member_role(
     user_id: uuid.UUID,
     data: MemberUpdate,
     svc: TeamSvc,
-    admin: RequireAdmin,
+    manager: RequireTeamManager,
     client: ClientInfo,
 ):
     team= await svc.require_team(team_id)
@@ -65,10 +65,10 @@ async def set_member_role(
         team,
         user_id,
         data.role_in_team,
-        actor=admin,
+        actor=manager,
         ip_address=client["ip_address"]
     )
-    
+
 
 @router.delete("/{team_id}/members/{user_id}",
                response_model=dict,
@@ -77,14 +77,14 @@ async def remove_member(
     team_id: uuid.UUID,
     user_id: uuid.UUID,
     svc: TeamSvc,
-    admin: RequireAdmin,
+    manager: RequireTeamManager,
     client: ClientInfo,
 ) -> dict:
     team= await svc.require_team(team_id)
     remaining=await svc.remove_member(
         team,
         user_id,
-        actor=admin,
+        actor=manager,
         ip_address=client["ip_address"]
     )
     return {"removed":True, "open_tickets_still_assigned":remaining}

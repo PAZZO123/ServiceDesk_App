@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy import (
@@ -90,7 +91,7 @@ class TeamMembership(Base):
 class Category(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "categories"
 
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -114,6 +115,7 @@ class Category(Base, UUIDPrimaryKeyMixin, TimestampMixin):
             "sla_hours > 0",
             name="positive_sla_hours",
         ),
+        UniqueConstraint("team_id", "name", name="uq_categories_team_id_name"),
     )
 
     def __repr__(self) -> str:

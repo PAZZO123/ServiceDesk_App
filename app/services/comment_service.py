@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core import storage
-from app.core.exceptions import BadRequest, CommentNotFound
+from app.core.exceptions import CommentNotFound
 from app.core.permissions import TicketPermissions
 from app.models.attachment import Attachment
 from app.models.audit import AuditLog, Notification
-from app.models.enums import NotificationType
+from app.models.enums import NotificationType, TicketOwnerRole
 from app.models.ticket import Comment, Ticket
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentUpdate
@@ -43,7 +43,7 @@ class CommentService:
         perms: TicketPermissions,
         pagination: PaginationParams,
     ) -> tuple[list[Comment], int]:
-      
+
         conditions = [Comment.ticket_id == ticket.id, *perms.comment_conditions()]
 
         total = (
@@ -64,7 +64,6 @@ class CommentService:
         rows = (await self.db.execute(stmt)).unique().scalars().all()
         return list(rows), total
 
-
     async def create(
         self,
         ticket: Ticket,
@@ -73,42 +72,23 @@ class CommentService:
         perms: TicketPermissions,
         *,
         ip_address: str | None = None,
-        commit:bool=True
+        commit: bool = True,
     ) -> Comment:
         now = datetime.now(UTC)
-        is_internal = data.is_internal
-
-      
-        if data.parent_id is not None:
-            parent = await self.db.get(Comment, data.parent_id)
-            if (
-                parent is None
-                or parent.ticket_id != ticket.id
-                or not perms.can_see_comment(parent)
-            ):
-                raise BadRequest("No such comment on this ticket.")
-
-            if parent.parent_id is not None:
-                raise BadRequest(
-                    "Replies cannot be nested more than one level deep."
-                )
-            if parent.is_internal:
-                is_internal = True
 
         comment = Comment(
             ticket_id=ticket.id,
             author_id=author.id,
-            parent_id=data.parent_id,
             body=data.body,
-            is_internal=is_internal,
+            is_internal=data.is_internal,
         )
         self.db.add(comment)
         await self.db.flush()
 
         if (
             ticket.first_response_at is None
-            and not is_internal
-            and author.id != ticket.requester_id
+            and not comment.is_internal
+            and not ticket.has_owner(author.id, TicketOwnerRole.REQUESTER)
         ):
             ticket.first_response_at = now
 
@@ -118,7 +98,7 @@ class CommentService:
             action="commented",
             changes={
                 "comment_id": str(comment.id),
-                "internal": is_internal,
+                "internal": comment.is_internal,
                 "preview": data.body[:PREVIEW_CHARS],
             },
             ip_address=ip_address,
@@ -126,7 +106,7 @@ class CommentService:
 
         self._notify(ticket, comment, author)
         if commit:
-          await self.db.commit()
+            await self.db.commit()
         return await self.require_by_id(comment.id)
 
     async def update(
@@ -164,15 +144,7 @@ class CommentService:
         actor: User,
         *,
         ip_address: str | None = None,
-
     ) -> None:
-        reply_count = (
-            await self.db.scalar(
-                select(func.count(Comment.id)).where(Comment.parent_id == comment.id)
-            )
-            or 0
-        )
-
         self._add_audit(
             actor_id=actor.id,
             ticket_id=comment.ticket_id,
@@ -181,34 +153,40 @@ class CommentService:
                 "comment_id": str(comment.id),
                 "author_id": str(comment.author_id),
                 "preview": comment.body[:PREVIEW_CHARS],
-                "replies_removed": reply_count,
             },
             ip_address=ip_address,
         )
-        paths=list(
+        paths = list(
             await self.db.scalars(
                 select(Attachment.storage_path).where(
-                    Attachment.comment_id== comment.id
+                    Attachment.comment_id == comment.id
                 )
             )
         )
 
         await self.db.delete(comment)
-        
+
         await self.db.commit()
         for path in paths:
             storage.delete_file(path)
-#Internals
+
+    # Internals
     def _notify(self, ticket: Ticket, comment: Comment, author: User) -> None:
+        requester_id = ticket.requester.id if ticket.requester else None
+        assignee_id = ticket.assignee.id if ticket.assignee else None
+
         recipients: set[uuid.UUID | None]
 
         if comment.is_internal:
-            recipients = {ticket.assignee_id}
-        elif author.id == ticket.requester_id:
-            
-            recipients = {ticket.assignee_id}
+            recipients = {assignee_id}
+        elif author.id == requester_id:
+            recipients = {assignee_id}
         else:
-            recipients = {ticket.requester_id, ticket.assignee_id}
+            recipients = {requester_id, assignee_id}
+
+        # Watchers hear about public comments only - a watcher may be a requester.
+        if not comment.is_internal:
+            recipients.update(watcher.id for watcher in ticket.watchers)
 
         recipients.discard(None)
         recipients.discard(author.id)
@@ -228,7 +206,6 @@ class CommentService:
                     },
                 )
             )
-     
 
     def _add_audit(
         self,

@@ -3,7 +3,6 @@ from datetime import datetime
 
 from pydantic import EmailStr, Field, field_validator
 
-from app.models.enums import UserRole
 from app.schemas.common import APISchema, PasswordStr
 
 
@@ -41,6 +40,14 @@ class UserProfileUpdate(APISchema):
     signature: str | None = Field(default=None, max_length=2000)
 
 
+# ======================================================================
+#  OUTPUT
+# ======================================================================
+class RoleBrief(APISchema):
+    name: str
+    permissions: list[str]
+
+
 class UserPublic(APISchema):
     id: uuid.UUID
     full_name: str
@@ -49,18 +56,14 @@ class UserPublic(APISchema):
 
 class UserRead(UserPublic):
     email: EmailStr
-    role: UserRole
+    role: RoleBrief
     is_active: bool
     is_verified: bool
     created_at: datetime
 
 
-class UserProfileRead(APISchema):
+class UserWithProfile(UserRead):
     timezone: str
     notify_email: bool
     notify_in_app: bool
     signature: str | None = None
-
-
-class UserWithProfile(UserRead):
-    profile: UserProfileRead | None = None

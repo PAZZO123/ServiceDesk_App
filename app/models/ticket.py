@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
     String,
     Text,
+    func,
     text,
 )
 from sqlalchemy import (
@@ -19,7 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
-from app.models.enums import TicketPriority, TicketStatus
+from app.models.enums import TicketOwnerRole, TicketPriority, TicketStatus
 
 if TYPE_CHECKING:
     from app.models.attachment import Attachment
@@ -75,24 +77,15 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         index=True,
     )
 
-    requester_id: Mapped[uuid.UUID] = mapped_column(
+    duplicate_group_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        ForeignKey("duplicate_groups.id", ondelete="RESTRICT"),
+        nullable=True,
         index=True,
     )
 
-    assignee_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    merged_into_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("tickets.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
+    is_duplicate_canonical: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
     )
 
     sla_due_at: Mapped[datetime] = mapped_column(
@@ -126,30 +119,18 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         nullable=True,
         deferred=True,
     )
-    requester: Mapped["User"] = relationship(
-        back_populates="tickets_requested",
-        foreign_keys=[requester_id],
-    )
 
-    assignee: Mapped["User | None"] = relationship(
-        back_populates="tickets_assigned",
-        foreign_keys=[assignee_id],
+    # The only writable path to ticket_owners; removing an item deletes the row.
+    owners: Mapped[list["TicketOwner"]] = relationship(
+        back_populates="ticket",
+        cascade="all, delete-orphan",
     )
 
     category: Mapped["Category"] = relationship(back_populates="tickets")
     team: Mapped["Team"] = relationship(back_populates="tickets")
 
-    merged_into: Mapped["Ticket | None"] = relationship(
-        "Ticket",
-        back_populates="duplicates",
-        remote_side="Ticket.id",
-        foreign_keys=[merged_into_id],
-    )
-
-    duplicates: Mapped[list["Ticket"]] = relationship(
-        "Ticket",
-        back_populates="merged_into",
-        foreign_keys=[merged_into_id],
+    duplicate_group: Mapped["DuplicateGroup | None"] = relationship(
+        back_populates="tickets"
     )
 
     comments: Mapped[list["Comment"]] = relationship(
@@ -186,10 +167,114 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
             "search_vector",
             postgresql_using="gin",
         ),
+        Index(
+            "uq_tickets_one_canonical_per_group",
+            "duplicate_group_id",
+            unique=True,
+            postgresql_where=text("is_duplicate_canonical"),
+        ),
+        CheckConstraint(
+            "NOT is_duplicate_canonical OR duplicate_group_id IS NOT NULL",
+            name="canonical_needs_group",
+        ),
     )
+
+    # Read-only views over `owners` (must be loaded - see TicketService._base_query)
+    def _owners_with_role(self, role: TicketOwnerRole) -> list["User"]:
+        return [owner.user for owner in self.owners if owner.role == role]
+
+    @property
+    def requester(self) -> "User | None":
+        found = self._owners_with_role(TicketOwnerRole.REQUESTER)
+        return found[0] if found else None
+
+    @property
+    def assignee(self) -> "User | None":
+        found = self._owners_with_role(TicketOwnerRole.ASSIGNEE)
+        return found[0] if found else None
+
+    @property
+    def watchers(self) -> list["User"]:
+        return self._owners_with_role(TicketOwnerRole.WATCHER)
+
+    def has_owner(self, user_id: uuid.UUID, role: TicketOwnerRole | None = None) -> bool:
+        return any(
+            owner.user_id == user_id and (role is None or owner.role == role)
+            for owner in self.owners
+        )
 
     def __repr__(self) -> str:
         return f"<Ticket {self.reference} {self.status.value}>"
+
+
+class TicketOwner(Base):
+    __tablename__ = "ticket_owners"
+
+    ticket_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tickets.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+
+    role: Mapped[TicketOwnerRole] = mapped_column(
+        SAEnum(
+            TicketOwnerRole,
+            name="ticket_owner_role",
+            values_callable=lambda e: [m.value for m in e],
+        ),
+        primary_key=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    ticket: Mapped["Ticket"] = relationship(back_populates="owners")
+    user: Mapped["User"] = relationship(back_populates="ticket_ownerships")
+
+    __table_args__ = (
+        Index("ix_ticket_owners_user_id_role", "user_id", "role"),
+        # One requester and one assignee per ticket; watchers are unlimited.
+        Index(
+            "uq_ticket_owners_single_holder",
+            "ticket_id",
+            "role",
+            unique=True,
+            postgresql_where=text("role IN ('requester', 'assignee')"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<TicketOwner {self.role.value} user={self.user_id} ticket={self.ticket_id}>"
+
+
+class DuplicateGroup(Base, UUIDPrimaryKeyMixin):
+    __tablename__ = "duplicate_groups"
+
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+
+    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    tickets: Mapped[list["Ticket"]] = relationship(back_populates="duplicate_group")
+    creator: Mapped["User"] = relationship()
+
+    def __repr__(self) -> str:
+        return f"<DuplicateGroup {self.id}>"
 
 
 class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -209,13 +294,6 @@ class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         index=True,
     )
 
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("comments.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-    )
-
     body: Mapped[str] = mapped_column(Text, nullable=False)
 
     is_internal: Mapped[bool] = mapped_column(
@@ -223,17 +301,6 @@ class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     ticket: Mapped["Ticket"] = relationship(back_populates="comments")
     author: Mapped["User"] = relationship(back_populates="comments")
-
-    parent: Mapped["Comment | None"] = relationship(
-        "Comment",
-        back_populates="replies",
-        remote_side="Comment.id",  # same pattern as merged_into
-    )
-    replies: Mapped[list["Comment"]] = relationship(
-        "Comment",
-        back_populates="parent",
-        cascade="all, delete-orphan",
-    )
 
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="comment",

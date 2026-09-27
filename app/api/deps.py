@@ -22,7 +22,7 @@ from app.core.exceptions import (
 from app.core.permissions import TicketPermissions, load_team_ids
 from app.core.security import TokenType, decode_token
 from app.db.session import get_db
-from app.models.enums import UserRole
+from app.models.enums import Permission
 from app.models.user import User
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
@@ -81,7 +81,7 @@ async def get_current_user(
     except (KeyError, ValueError) as exc:
         raise InvalidToken() from exc
 
-    user = await users.get_by_id(user_id, with_profile=True)
+    user = await users.get_by_id(user_id)
 
     if user is None:
         raise InvalidToken()
@@ -109,19 +109,19 @@ VerifiedUser = Annotated[User, Depends(get_verified_user)]
 
 
 # Authorization
-def require_roles(*allowed: UserRole):
+def require_permission(permission: Permission):
     async def dependency(user: VerifiedUser) -> User:
-        if user.role not in allowed:
+        if not user.role.grants(permission):
             raise PermissionDenied(
-                f"This action requires one of:{','.join(r.value for r in allowed)}."
+                f"This action requires the '{permission.value}' permission."
             )
         return user
 
     return dependency
 
 
-RequireAgent = Annotated[User, Depends(require_roles(UserRole.AGENT, UserRole.ADMIN))]
-RequireAdmin = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
+RequireTeamManager = Annotated[User, Depends(require_permission(Permission.TEAM_MANAGE))]
+RequireUserManager = Annotated[User, Depends(require_permission(Permission.USER_MANAGE))]
 
 async def get_permissions(user: VerifiedUser, db: DbSession) -> TicketPermissions:
     return TicketPermissions(user=user, team_ids=await load_team_ids(db, user))

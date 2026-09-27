@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 
 from app.core.exceptions import BadRequest, ConflictError, TeamNotFound, UserNotFound
 from app.models.audit import AuditLog
-from app.models.enums import TeamRole, TicketStatus, UserRole
+from app.models.enums import Permission, TeamRole, TicketOwnerRole, TicketStatus
 from app.models.team import Team, TeamMembership
 from app.models.ticket import Ticket
 from app.models.user import User
@@ -50,9 +50,9 @@ class TeamService:
         if  not user.is_active:
             raise BadRequest("That account is disabled")
        
-        if user.role == UserRole.REQUESTER:
+        if not user.role.grants(Permission.TICKET_WORK):
             raise BadRequest(
-                "Only agents and administrators can belong to a team."
+                "Only support staff can belong to a team."
             )
 
         if await self._get_membership(team, user.id) is not None:
@@ -136,7 +136,7 @@ class TeamService:
         open_tickets = (
             await self.db.scalar(
                 select(func.count(Ticket.id)).where(
-                    Ticket.assignee_id == user_id,
+                    Ticket.owners.any(user_id=user_id, role=TicketOwnerRole.ASSIGNEE),
                     Ticket.team_id == team.id,
                     Ticket.deleted_at.is_(None),
                     Ticket.status.notin_(

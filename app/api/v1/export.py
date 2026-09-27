@@ -7,12 +7,13 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import aliased
 
 from app.api.deps import DbSession, Perms
+from app.models.enums import TicketOwnerRole
 from app.models.team import Category, Team
-from app.models.ticket import Ticket
+from app.models.ticket import Ticket, TicketOwner
 from app.models.user import User
 from app.schemas.ticket import TicketFilters
 from app.services.ticket_service import TicketService
@@ -44,7 +45,7 @@ def _csv_safe(value:Any)->str:
 @router.get(
     "/exports/tickets.csv",
     summary="Download ticket as csv",
-    response_model=StreamingResponse,
+    response_class=StreamingResponse,
      responses={200: {"content": {"text/csv": {}}}},
 )
 async def export_tickets(
@@ -55,9 +56,11 @@ async def export_tickets(
     service=TicketService(db)
     conditions=service.conditions(filters)
     conditions.extend(perms.visibility_conditions())
+    req_owner=aliased(TicketOwner, name="req_owner")
+    asg_owner=aliased(TicketOwner, name="asg_owner")
     requester=aliased(User, name="req")
     assignee=aliased(User, name="asg")
-    
+
     stmt=(
         select(
             Ticket.reference,
@@ -74,13 +77,22 @@ async def export_tickets(
         )
         .join(Team, Team.id == Ticket.team_id)
         .join(Category, Category.id == Ticket.category_id)
-        .join(requester, requester.id == Ticket.requester_id)
-        .outerjoin(assignee,assignee.id==Ticket.assignee_id)
+        # Outer joins: a ticket missing its requester row must still appear, not vanish.
+        .outerjoin(
+            req_owner,
+            and_(req_owner.ticket_id == Ticket.id, req_owner.role == TicketOwnerRole.REQUESTER),
+        )
+        .outerjoin(requester, requester.id == req_owner.user_id)
+        .outerjoin(
+            asg_owner,
+            and_(asg_owner.ticket_id == Ticket.id, asg_owner.role == TicketOwnerRole.ASSIGNEE),
+        )
+        .outerjoin(assignee, assignee.id == asg_owner.user_id)
         .where(Ticket.deleted_at.is_(None), *conditions)
         .order_by(Ticket.created_at)
         .execution_options(yield_per=BATCH_SIZE)
     )
-    
+
     async def generate() -> AsyncIterator[str]:
             buffer = io.StringIO()
             writer = csv.writer(buffer)
@@ -92,7 +104,7 @@ async def export_tickets(
                 buffer.truncate(0)
                 return chunk
 
-            yield "\ufeff"
+            yield "﻿"
 
             writer.writerow(COLUMNS)
             yield flush()
@@ -107,7 +119,7 @@ async def export_tickets(
                 if count % BATCH_SIZE == 0:
                     yield flush()
 
-            
+
             remainder = flush()
             if remainder:
                 yield remainder

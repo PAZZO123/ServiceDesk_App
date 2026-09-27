@@ -37,9 +37,9 @@ class TicketCreate(APISchema):
     category_id: uuid.UUID=Field(
         description="Chosen from Get / categories. Determines the team and SLA."
     )
-    priority:TicketPriority =Field(
-        default=TicketPriority.MEDIUM,
-        description="How urgent is this."
+    priority:TicketPriority | None =Field(
+        default=None,
+        description="Support staff only. Empty: High for agents, Medium for everyone else."
     )
     extra_data: dict[str, Any]=Field(
         default_factory=dict,
@@ -113,7 +113,9 @@ class TicketRead(TicketListItem):
     resolved_at: datetime | None = None
     closed_at: datetime | None = None
 
-    merged_into_id: uuid.UUID | None = None
+    duplicate_group_id: uuid.UUID | None = None
+    is_duplicate_canonical: bool = False
+    watchers: list[UserPublic] = Field(default_factory=list)
     
 #Filtering and Sorting
 class TicketSortField(StrEnum):

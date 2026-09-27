@@ -15,6 +15,7 @@ from app.api.v1.comments import router as comments_router
 from app.api.v1.export import router as export_router
 from app.api.v1.teams import router as teams_router
 from app.api.v1.ticket import router as tickets_router
+from app.api.v1.users import router as users_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
@@ -123,3 +124,4 @@ app.include_router(comments_router, prefix=settings.API_V1_PREFIX)
 app.include_router(teams_router, prefix=settings.API_V1_PREFIX)
 app.include_router(attachment_router, prefix=settings.API_V1_PREFIX)
 app.include_router(export_router, prefix=settings.API_V1_PREFIX)
+app.include_router(users_router, prefix=settings.API_V1_PREFIX)

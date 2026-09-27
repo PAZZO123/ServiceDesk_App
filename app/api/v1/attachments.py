@@ -188,7 +188,7 @@ async def delete_attachment(
 )->None:
     attachment= await attachments.require_by_id(attachment_id)
     await _ticket_for_attachment(attachment, tickets, comments, perms)
-    if attachment.uploaded_by !=perms.user.id and not perms.is_admin:
+    if attachment.uploaded_by !=perms.user.id and not perms.can_moderate_content:
         raise PermissionDenied("You can only delete files you uploaded")
     
     await attachments.delete(

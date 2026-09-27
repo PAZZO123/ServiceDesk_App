@@ -1,13 +1,14 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import UserAlreadyExists, UserNotFound
 from app.core.security import hash_password
-from app.models.user import User, UserProfile
+from app.models.enums import SystemRole
+from app.models.role import Role
+from app.models.user import User
 from app.schemas.user import UserCreate, UserProfileUpdate
 
 
@@ -15,23 +16,14 @@ class UserService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def get_by_id(
-        self, user_id: uuid.UUID, *, with_profile: bool = False
-    ) -> User | None:
-        stmt = select(User).where(User.id == user_id)
-        if with_profile:
-            stmt = stmt.options(selectinload(User.profile))
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+    async def get_by_id(self, user_id: uuid.UUID) -> User | None:
+        return await self.db.scalar(select(User).where(User.id == user_id))
 
-    async def get_by_email(
-        self, email: str, *, with_profile: bool = False
-    ) -> User | None:
-        stmt = select(User).where(User.email == email.lower())
-        if with_profile:
-            stmt = stmt.options(selectinload(User.profile))
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+    async def get_by_email(self, email: str) -> User | None:
+        # lower(email) so the query can use the uq_users_email_lower index
+        return await self.db.scalar(
+            select(User).where(func.lower(User.email) == email.lower())
+        )
 
     async def require_by_email(self, email: str) -> User:
 
@@ -41,17 +33,22 @@ class UserService:
         return user
 
     async def require_by_id(self, user_id: uuid.UUID) -> User:
-        user = await self.get_by_id(user_id, with_profile=True)
+        user = await self.get_by_id(user_id)
         if user is None:
             raise UserNotFound()
         return user
 
     # Creates
     async def create(self, data: UserCreate) -> User:
+        role = await self.db.scalar(select(Role).where(Role.name == SystemRole.REQUESTER))
+        if role is None:
+            raise RuntimeError("The 'requester' role is missing. Run: alembic upgrade head")
+
         user = User(
             email=data.email,
             full_name=data.full_name,
             hashed_password=await hash_password(data.password),
+            role=role,
         )
         self.db.add(user)
 
@@ -59,16 +56,12 @@ class UserService:
             await self.db.flush()
         except IntegrityError as exc:
             await self.db.rollback()
-            if "uq_users_email" in str(exc.orig) or "ix_users_email" in str(exc.orig):
+            if "uq_users_email_lower" in str(exc.orig):
                 raise UserAlreadyExists() from exc
             raise
-        profile = UserProfile(user_id=user.id)
-        self.db.add(profile)
 
         await self.db.commit()
-        await self.db.refresh(
-            user, attribute_names=["created_at", "updated_at", "role"]
-        )
+        await self.db.refresh(user, attribute_names=["created_at", "updated_at"])
         return user
 
     async def set_verified(self, user: User) -> User:
@@ -81,14 +74,9 @@ class UserService:
         await self.db.commit()
         return user
 
-    async def update_profile(self, user: User, data: UserProfileUpdate) -> UserProfile:
-        profile = user.profile
-        if profile is None:
-            profile = UserProfile(user_id=user.id)
-            self.db.add(profile)
-
+    async def update_profile(self, user: User, data: UserProfileUpdate) -> User:
         updates = data.model_dump(exclude_unset=True)
         for field, value in updates.items():
-            setattr(profile, field, value)
+            setattr(user, field, value)
         await self.db.commit()
-        return profile
+        return user
