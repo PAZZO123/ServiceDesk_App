@@ -6,6 +6,8 @@ import MePage from "./pages/MePage";
 import NewTicketPage from "./pages/NewTicketPage";
 import TicketListPage from "./pages/TicketListPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
+import NotificationsPage from "./pages/NotificationsPage";
+
 
 
 export default function App() {
@@ -20,6 +22,7 @@ export default function App() {
           <Route path="/tickets/new" element={<NewTicketPage />} />
           <Route path="/me" element={<MePage />} />
           <Route path="/tickets/:id" element={<TicketDetailPage />} />
+          <Route path="notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 

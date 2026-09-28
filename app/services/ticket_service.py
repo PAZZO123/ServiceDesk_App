@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+from app.realtime.events import emit_ticket_event
 
 from app.core.exceptions import (
     BadRequest,
@@ -326,6 +327,7 @@ class TicketService:
             ip_address=ip_address,
         )
         await self._notify_team(ticket, category)
+        await emit_ticket_event(self.db, ticket.id, "created")
         if commit:
             await self.db.commit()
         return await self.require_by_id(ticket.id)
@@ -371,7 +373,7 @@ class TicketService:
             changes=changes,
             ip_address=ip_address,
         )
-
+        await emit_ticket_event(self.db, ticket.id, "updated")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
 
@@ -409,7 +411,7 @@ class TicketService:
             changes={"status": {"from": current.value, "to": new_status.value}},
             ip_address=ip_address,
         )
-
+        await emit_ticket_event(self.db, ticket.id, "status changed")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
 
@@ -432,7 +434,7 @@ class TicketService:
             changes={"reference": ticket.reference},
             ip_address=ip_address,
         )
-
+        await emit_ticket_event(self.db, ticket.id, "deleted")
         await self.db.commit()
 
     async def assign(
@@ -506,7 +508,7 @@ class TicketService:
                     },
                 )
             )
-
+        await emit_ticket_event(self.db, ticket.id, "assigned")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
 
@@ -544,6 +546,7 @@ class TicketService:
             },
             ip_address=ip_address,
         )
+        await emit_ticket_event(self.db, ticket.id, "tags_changed")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
 

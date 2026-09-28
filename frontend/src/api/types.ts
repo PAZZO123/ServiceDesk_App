@@ -18,3 +18,6 @@ export type CategoryBrief = Schemas["CategoryBrief"];
 export type CommentRead = Schemas["CommentRead"];
 export type CommentPage = Schemas["Page_CommentRead_"];
 export type AttachmentRead = Schemas["AttachmentRead"];
+export type NotificationItem = Schemas["NotificationRead"];
+export type NotificationPage = Schemas["Page_NotificationRead_"];
+export type UnreadCount = Schemas["UnreadCount"];

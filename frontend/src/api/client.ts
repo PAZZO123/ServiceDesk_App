@@ -78,6 +78,14 @@ async function doRefresh(): Promise<boolean> {
   return true;
 }
 
+export async function ensureFreshToken(): Promise<boolean> {
+  const ok = await refreshOnce();
+  if (!ok) {
+    sessionExpiredhandler?.();
+  }
+  return ok;
+}
+
 type Options = Omit<RequestInit, "body"> & {
   json?: unknown; // sent as JSON
   body?: BodyInit; // FormData (uploads), URLSearchParams (login)

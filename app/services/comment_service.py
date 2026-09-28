@@ -17,6 +17,7 @@ from app.models.ticket import Comment, Ticket
 from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentUpdate
 from app.schemas.common import PaginationParams
+from app.realtime.events import emit_ticket_event
 
 PREVIEW_CHARS = 140
 
@@ -105,6 +106,9 @@ class CommentService:
         )
 
         self._notify(ticket, comment, author)
+        await emit_ticket_event(
+            self.db, ticket.id, "comment_added", internal=comment.is_internal
+        )
         if commit:
             await self.db.commit()
         return await self.require_by_id(comment.id)
@@ -134,6 +138,9 @@ class CommentService:
             },
             ip_address=ip_address,
         )
+        await emit_ticket_event(
+            self.db, comment.ticket_id, "comment_edited", internal=comment.is_internal
+        )
 
         await self.db.commit()
         return await self.require_by_id(comment.id)
@@ -162,6 +169,9 @@ class CommentService:
                     Attachment.comment_id == comment.id
                 )
             )
+        )
+        await emit_ticket_event(
+            self.db, comment.ticket_id, "comment_deleted", internal=comment.is_internal
         )
 
         await self.db.delete(comment)

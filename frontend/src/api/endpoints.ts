@@ -1,16 +1,18 @@
 
 import { api, apiRaw } from "./client";
 import type {
-  AttachmentRead,
-  CategoryBrief,
-  CommentPage,
-  CommentRead,
-  TicketCreate,
-  TicketPage,
-  TicketRead,
-  TicketStatus,
-  TokenPair,
-  User,
+    AttachmentRead,
+    CategoryBrief,
+    CommentPage,
+    CommentRead,
+    NotificationItem,
+    NotificationPage,
+    TicketCreate,
+    TicketPage,
+    TicketRead,
+    TicketStatus,
+    TokenPair,
+    User,
 } from "./types";
 
 export function login(email: string, password: string): Promise<TokenPair> {
@@ -117,4 +119,26 @@ export async function downloadAttachment(attachment: AttachmentRead): Promise<vo
   link.click();
 
   URL.revokeObjectURL(url);
+}
+export function listNotifications(
+  page: number,
+  size: number,
+  unreadOnly: boolean,
+): Promise<NotificationPage> {
+ 
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+    
+    unread_only: String(unreadOnly),
+  });
+  return api<NotificationPage>(`/notifications?${params}`);
+}
+
+export function markNotificationRead(id: string): Promise<NotificationItem> {
+  return api<NotificationItem>(`/notifications/${id}/read`, { method: "POST" });
+}
+
+export function markAllNotificationsRead(): Promise<void> {
+  return api<void>("/notifications/read-all", { method: "POST" });
 }

@@ -1,0 +1,213 @@
+Enum ticket_owner_role {
+  requester
+  assignee
+  watcher
+}
+
+Enum team_role {
+  member
+  lead
+}
+
+Enum ticket_status {
+  open
+  in_progress
+  waiting
+  resolved
+  closed
+}
+
+Enum ticket_priority {
+  low
+  medium
+  high
+  urgent
+}
+
+Enum notification_type {
+  ticket_assigned
+  ticket_status_changed
+  comment_added
+  sla_breached
+  ticket_mentioned
+}
+Table roles {
+  id uuid [pk]
+  name varchar(50) [unique, not null]
+  description varchar(255)
+  permissions "text[]" [not null]
+  is_system boolean [not null, default: false]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table users {
+  id uuid [pk]
+  email varchar(255)
+  full_name varchar(120)
+  hashed_password varchar(255)
+  role_id uuid [ref: > roles.id]
+  is_active boolean
+  is_verified boolean
+  avatar_url varchar(500)
+  sessions_valid_from timestamptz
+  timezone varchar(64)
+  notify_email boolean
+  notify_in_app boolean
+  signature text
+  created_at timestamptz
+  updated_at timestamptz
+
+  Indexes {
+    `lower(email)` [unique]
+  }
+}
+
+Table refresh_tokens {
+  id uuid [pk]
+  user_id uuid [ref: > users.id]
+  jti varchar(64) [unique]
+  family_id uuid
+  expires_at timestamptz
+  revoked_at timestamptz
+  user_agent varchar(255)
+  ip_address inet
+  created_at timestamptz
+}
+
+Table notifications {
+  id uuid [pk]
+  user_id uuid [ref: > users.id]
+  type notification_type
+  payload jsonb
+  read_at timestamptz
+  created_at timestamptz
+}
+
+Table teams {
+  id uuid [pk]
+  name varchar(100) [unique]
+  slug varchar(100) [unique]
+  description text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table team_memberships {
+  user_id uuid [pk, ref: > users.id]
+  team_id uuid [pk, ref: > teams.id]
+  role_in_team team_role
+  joined_at timestamptz
+}
+
+Table categories {
+  id uuid [pk]
+  name varchar(100)
+  description text
+  team_id uuid [ref: > teams.id]
+  sla_hours integer
+  created_at timestamptz
+  updated_at timestamptz
+
+  Indexes {
+    (team_id, name) [unique]
+  }
+}
+
+Table audit_logs {
+  id bigserial [pk]
+  actor_id uuid [ref: > users.id, null]
+  entity_type varchar(50)
+  entity_id uuid
+  action varchar(50)
+  changes jsonb
+  ip_address inet
+  created_at timestamptz
+}
+
+Table tickets {
+  id uuid [pk]
+  reference varchar(20) [unique]
+  title varchar(200)
+  description text
+  status ticket_status
+  priority ticket_priority
+  category_id uuid [ref: > categories.id]
+  team_id uuid [ref: > teams.id]
+  sla_due_at timestamptz
+  first_response_at timestamptz
+  resolved_at timestamptz
+  closed_at timestamptz
+  sla_breached boolean
+  extra_data jsonb
+  search_vector tsvector
+  deleted_at timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+
+}
+
+Table ticket_owners {
+  ticket_id uuid [not null, ref:>tickets.id]
+  user_id uuid [not null, ref:>users.id]
+  role ticket_owner_role [not null]
+  created_at timestamptz [not null]
+
+  Indexes {
+    (ticket_id, user_id, role) [pk]
+    (user_id, role)
+    (ticket_id, role) [unique]
+  }
+}
+
+Table duplicate_groups {
+  id uuid [pk]
+  created_by uuid [ref: > users.id]
+  reason varchar(255)
+  created_at timestamptz
+}
+Table duplicate_group_tickets {
+  ticket_id uuid [pk, ref: - tickets.id]
+  group_id uuid [not null, ref: > duplicate_groups.id]
+  is_primary boolean [not null, default: false]
+  created_at timestamptz [not null]
+
+  Indexes {
+    group_id
+    group_id [unique]
+  }
+}
+
+Table comments {
+  id uuid [pk]
+  ticket_id uuid [ref: > tickets.id]
+  author_id uuid [ref: > users.id]
+  body text
+  is_internal boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table attachments {
+  id uuid [pk]
+  ticket_id uuid [ref: > tickets.id, null]
+  comment_id uuid [ref: > comments.id, null]
+  original_filename varchar(255)
+  storage_path varchar(500)
+  content_type varchar(100)
+  size_bytes bigint
+  uploaded_by uuid [ref: > users.id]
+  created_at timestamptz
+}
+
+Table ticket_tags {
+  ticket_id uuid [pk, ref: > tickets.id]
+  tag_id uuid [pk, ref: > tags.id]
+}
+
+Table tags {
+  id uuid [pk]
+  name varchar(50) [unique]
+  color varchar(7)
+  created_at timestamptz
+}

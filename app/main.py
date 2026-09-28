@@ -1,4 +1,6 @@
 
+import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -13,12 +15,15 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.catalog import router as catalog_router
 from app.api.v1.comments import router as comments_router
 from app.api.v1.export import router as export_router
+from app.api.v1.realtime import router as realtime_router
 from app.api.v1.teams import router as teams_router
 from app.api.v1.ticket import router as tickets_router
 from app.api.v1.users import router as users_router
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
+from app.realtime.listener import listen_forever
+from app.api.v1.notifications import router as notifications_router
 
 logging.basicConfig(
     level=logging.INFO if settings.DEBUG else logging.WARNING,
@@ -40,8 +45,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     if not settings.is_production:
         logger.info("Docs: %s/docs", settings.BACKEND_URL)
+        
+    listener=asyncio.create_task(listen_forever(), name="realtime_listner")
 
     yield 
+    listener.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await listener
     logger.info("Shutting down - closing database connections")
     await engine.dispose()
 
@@ -125,3 +135,6 @@ app.include_router(teams_router, prefix=settings.API_V1_PREFIX)
 app.include_router(attachment_router, prefix=settings.API_V1_PREFIX)
 app.include_router(export_router, prefix=settings.API_V1_PREFIX)
 app.include_router(users_router, prefix=settings.API_V1_PREFIX)
+app.include_router(realtime_router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
+

@@ -114,7 +114,7 @@ async def upload_to_comment(
 @router.get(
     "/tickets/{ticket_id}/attachments",
     response_model=list[AttachmentRead],
-    summary="Every file on a ticket"
+    summary="Add a file on a ticket"
 )
 async def list_attachment(
     ticket_id:uuid.UUID,

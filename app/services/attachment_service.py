@@ -12,6 +12,7 @@ from app.core.permissions import TicketPermissions
 from app.models.attachment import Attachment
 from app.models.ticket import Comment, Ticket
 from app.models.user import User
+from app.realtime.events import emit_ticket_event
 from app.services.audit import add_audit
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,15 @@ class AttachmentService:
                 },
                 ip_address=ip_address,
             )
+            if comment is not None:
+                    await emit_ticket_event(
+                    self.db,
+                    comment.ticket_id,
+                    "attachment_added",
+                    internal=comment.is_internal,
+                )
+            elif ticket is not None:
+                await emit_ticket_event(self.db, ticket.id, "attachment_added")
 
             await self.db.commit()
 
