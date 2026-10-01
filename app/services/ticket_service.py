@@ -7,7 +7,6 @@ from typing import Any
 from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
-from app.realtime.events import emit_ticket_event
 
 from app.core.exceptions import (
     BadRequest,
@@ -28,6 +27,7 @@ from app.models.tag import Tag
 from app.models.team import Category, TeamMembership
 from app.models.ticket import Ticket, TicketOwner
 from app.models.user import User
+from app.realtime.events import emit_ticket_event
 from app.schemas.common import PaginationParams
 from app.schemas.ticket import (
     SortOrder,

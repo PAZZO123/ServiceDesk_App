@@ -62,6 +62,7 @@ async def send_email(
         logger.info("email_sent to=%s subject=%s", to, subject)
     except Exception:
         logger.exception("email_failed to=%s subject=%s", to, subject)
+        raise
 
 
 # The Three Messages

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 
-import asyncpg  
+import asyncpg
 
 from app.core.config import settings
 from app.realtime.events import NOTIFICATION_CHANNEL, TICKET_CHANNEL, inbox_room

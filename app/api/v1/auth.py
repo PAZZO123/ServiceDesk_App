@@ -1,19 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, Depends, status
+from fastapi.concurrency import run_in_threadpool  # put under "from fastapi import ..."
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import (
-    AuthSvc,
-    ClientInfo,
-    UserSvc,
-    VerifiedUser,
-)
-from app.core.email import (
-    send_password_reset_email,
-    send_verification_email,
-    send_welcome_email,
-)
+from app.api.deps import AuthSvc, ClientInfo, UserSvc, VerifiedUser
 from app.core.exceptions import AlreadyVerified, InvalidCredentials, InvalidToken
 from app.core.security import (
     create_email_verification_token,
@@ -39,6 +30,7 @@ from app.schemas.user import (
     UserUpdate,
     UserWithProfile,
 )
+from app.workers import email_tasks
 
 router = APIRouter(prefix="/auth", tags=["Authenticated"])
 
@@ -51,12 +43,12 @@ router = APIRouter(prefix="/auth", tags=["Authenticated"])
     responses={409: {"description": "Email Address already registered."}},
 )
 async def register(
-    data: UserCreate, background: BackgroundTasks, users: UserSvc
+    data: UserCreate, users: UserSvc
 ) -> RegisterResponse:
     user = await users.create(data)
     token = create_email_verification_token(user.email)
-    background.add_task(
-        send_verification_email,
+    await run_in_threadpool(
+        email_tasks.send_verification_email.delay,
         to=user.email,
         full_name=user.full_name,
         token=token,
@@ -74,7 +66,6 @@ async def register(
 )
 async def verify_email(
     data: TokenRequest,
-    background: BackgroundTasks,
     users: UserSvc,
 ) -> Message:
     email = verify_email_verification_token(data.token)
@@ -85,7 +76,7 @@ async def verify_email(
         raise AlreadyVerified()
     await users.set_verified(user)
 
-    background.add_task(send_welcome_email, to=user.email, full_name=user.full_name)
+    await run_in_threadpool(email_tasks.send_welcome_email.delay, to=user.email, full_name=user.full_name)
     return Message(message="Email Verified. You can now sign in.")
 
 
@@ -96,19 +87,13 @@ async def verify_email(
 )
 async def resend_verification(
     data: EmailRequest,
-    background: BackgroundTasks,
     users: UserSvc,
 ) -> Message:
 
     user = await users.get_by_email(data.email)
 
     if user is not None and not user.is_verified:
-        background.add_task(
-            send_verification_email,
-            to=user.email,
-            full_name=user.full_name,
-            token=create_email_verification_token(user.email),
-        )
+        await run_in_threadpool(email_tasks.send_verification_email.delay, to=user.email, full_name=user.full_name, token=create_email_verification_token(user.email))
 
     return Message(
         message="If that address has an unverified account, a new link has been sent."
@@ -212,18 +197,12 @@ async def update_my_profile(
 )
 async def request_password_reset(
     data: EmailRequest,
-    background: BackgroundTasks,
     users: UserSvc,
 ) -> Message:
     user = await users.get_by_email(data.email)
 
     if user is not None and user.is_active:
-        background.add_task(
-            send_password_reset_email,
-            to=user.email,
-            full_name=user.full_name,
-            token=create_password_reset_token(user.email),
-        )
+        await run_in_threadpool(email_tasks.send_password_reset_email.delay, to=user.email, full_name=user.full_name, token=create_password_reset_token(user.email))
 
     return Message(
         message="If that address has an account, a reset link has been sent."

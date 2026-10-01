@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
 from typing import Any
+
 from app.models.enums import NotificationType
 from app.schemas.common import APISchema
+
 
 class NotificationRead(APISchema):
     id:uuid.UUID

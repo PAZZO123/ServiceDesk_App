@@ -3,8 +3,9 @@ import contextlib
 import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from app.api.deps import get_current_user
-from app.core.exceptions import AccountNotVerified , AppError, InvalidToken
+from app.core.exceptions import AccountNotVerified, AppError, InvalidToken
 from app.core.permissions import TicketPermissions, load_team_ids
 from app.core.security import TokenType, decode_token
 from app.db.session import AsyncSessionLocal

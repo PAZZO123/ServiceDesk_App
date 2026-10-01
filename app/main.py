@@ -15,6 +15,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.catalog import router as catalog_router
 from app.api.v1.comments import router as comments_router
 from app.api.v1.export import router as export_router
+from app.api.v1.notifications import router as notifications_router
 from app.api.v1.realtime import router as realtime_router
 from app.api.v1.teams import router as teams_router
 from app.api.v1.ticket import router as tickets_router
@@ -23,7 +24,6 @@ from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
 from app.realtime.listener import listen_forever
-from app.api.v1.notifications import router as notifications_router
 
 logging.basicConfig(
     level=logging.INFO if settings.DEBUG else logging.WARNING,

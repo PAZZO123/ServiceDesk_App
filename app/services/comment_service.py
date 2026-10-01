@@ -15,9 +15,9 @@ from app.models.audit import AuditLog, Notification
 from app.models.enums import NotificationType, TicketOwnerRole
 from app.models.ticket import Comment, Ticket
 from app.models.user import User
+from app.realtime.events import emit_ticket_event
 from app.schemas.comment import CommentCreate, CommentUpdate
 from app.schemas.common import PaginationParams
-from app.realtime.events import emit_ticket_event
 
 PREVIEW_CHARS = 140
 
