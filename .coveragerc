@@ -1,0 +1,12 @@
+[run]
+# SQLAlchemy's async mode runs our code inside "greenlets". Without
+# this line, coverage loses track after the first `await` and reports
+# lines as "never run" that every test runs.
+concurrency = greenlet, thread
+# Measure only our application, not the libraries in .venv.
+source = app
+
+[report]
+# Hide files that are 100% covered; show the missing line numbers.
+skip_covered = true
+show_missing = true

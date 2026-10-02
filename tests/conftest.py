@@ -21,6 +21,7 @@ from alembic.config import Config  # noqa: E402
 from sqlalchemy import select, text  # noqa: E402
 
 from alembic import command  # noqa: E402
+from app.core.cache import redis_client  # noqa: E402
 from app.core.security import create_access_token, hash_password  # noqa: E402
 from app.db.session import AsyncSessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
@@ -29,7 +30,6 @@ from app.models.enums import TeamRole  # noqa: E402
 from app.models.role import Role  # noqa: E402
 from app.models.team import Category, Team, TeamMembership  # noqa: E402
 from app.models.user import User  # noqa: E402
-from app.core.cache import redis_client  # noqa: E402
 
 PASSWORD = "Correct-Horse-42"
 

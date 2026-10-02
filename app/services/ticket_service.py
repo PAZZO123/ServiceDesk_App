@@ -425,7 +425,7 @@ class TicketService:
             changes={"status": {"from": current.value, "to": new_status.value}},
             ip_address=ip_address,
         )
-        await emit_ticket_event(self.db, ticket.id, "status changed")
+        await emit_ticket_event(self.db, ticket.id, "status_changed")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
 
