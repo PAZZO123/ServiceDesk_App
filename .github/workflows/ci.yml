@@ -31,6 +31,17 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+          # Redis for the catalog cache tests (Celery is not needed: no
+      # test sends a task to a queue).
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     # .env is not in git (correct - it has your real Gmail password).
     # pydantic-settings reads environment variables too, so we set

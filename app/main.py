@@ -20,6 +20,7 @@ from app.api.v1.realtime import router as realtime_router
 from app.api.v1.teams import router as teams_router
 from app.api.v1.ticket import router as tickets_router
 from app.api.v1.users import router as users_router
+from app.core.cache import redis_client
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
@@ -54,6 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await listener
     logger.info("Shutting down - closing database connections")
     await engine.dispose()
+    await redis_client.aclose()
 
 #  THE APPLICATION
 

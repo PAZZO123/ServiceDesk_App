@@ -8,6 +8,7 @@ from app.models.enums import SystemRole
 from app.models.role import Role
 from app.models.team import Category, Team
 from app.models.user import User
+from app.core.cache import CATEGORIES_KEY, TEAMS_KEY, invalidate, redis_client
 
 #The Data
 TEAMS:list[tuple[str, str, str]]=[
@@ -117,6 +118,8 @@ async def main( promote_email: str| None, promote_role: str|None)->None:
         if promote_email and promote_role:
             await promote_user(db, promote_email, promote_role)
         await db.commit()
+    await invalidate(CATEGORIES_KEY, TEAMS_KEY)
+    await redis_client.aclose()
     await engine.dispose()
     print("Done. ")
 

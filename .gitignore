@@ -24,3 +24,6 @@ frontend/dist/
 # Editors
 .vscode/
 .idea/
+
+# Celery Beat's local bookkeeping (rewritten every minute)
+celerybeat-schedule*

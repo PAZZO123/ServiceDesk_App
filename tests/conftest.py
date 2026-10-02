@@ -13,13 +13,14 @@ if not settings.TEST_DATABASE_URL.endswith("_test"):
         "Refusing to run: the tests delete all rows."
     )
 settings.DATABASE_URL = settings.TEST_DATABASE_URL
+settings.REDIS_URL = settings.REDIS_URL.rsplit("/", 1)[0] + "/15"
 
 # above. `noqa: E402` tells ruff "imports not at the top" is on purpose.
 import asyncpg  # noqa: E402
-from alembic.config import Config  # noqa: E402
 from sqlalchemy import select, text  # noqa: E402
 
 from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
 from app.core.security import create_access_token, hash_password  # noqa: E402
 from app.db.session import AsyncSessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
