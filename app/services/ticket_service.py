@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from pydantic_core import to_jsonable_python
 from sqlalchemy import Select, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -24,7 +25,7 @@ from app.models.enums import (
     TicketStatus,
 )
 from app.models.tag import Tag
-from app.models.team import Category, TeamMembership
+from app.models.team import Category, Team, TeamMembership
 from app.models.ticket import Ticket, TicketOwner
 from app.models.user import User
 from app.realtime.events import emit_ticket_event
@@ -228,7 +229,7 @@ class TicketService:
             created_str, id_str = raw.split("|")
             return datetime.fromisoformat(created_str), uuid.UUID(id_str)
         except (ValueError, UnicodeDecodeError) as exc:
-            raise TicketNotFound("Invalid pagination cursor.") from exc
+            raise BadRequest("Invalid pagination cursor.") from exc
 
     async def get_by_id(self, ticket_id: uuid.UUID) -> Ticket | None:
         """Fetch one ticket, or None. Deleted tickets are invisible."""
@@ -351,20 +352,33 @@ class TicketService:
             if old_value == new_value:
                 continue
             changes[field] = {
-                "from": old_value.value if hasattr(old_value, "value") else old_value,
-                "to": new_value.value if hasattr(new_value, "value") else new_value,
+                "from": to_jsonable_python(old_value),
+                "to": to_jsonable_python(new_value),
             }
             setattr(ticket, field, new_value)
 
         if not changes:
             return ticket
 
-        if "category_id" in updates:
-            category = await self.db.get(Category, updates["category_id"])
+        # `changes`, not `updates`: only when the category REALLY changed.
+        if "category_id" in changes:
+            category = await self.db.get(Category, ticket.category_id)
             if category is None:
                 raise CategoryNotFound()
-            ticket.team_id = category.team_id
-            changes["team_id"] = {"to": str(category.team_id)}
+            await emit_ticket_event(self.db, ticket.id, "updated")
+            old_team_id = ticket.team_id
+            ticket.category = category
+            ticket.team = await self.db.get_one(Team, category.team_id)
+            await self.db.flush()
+         
+            ticket.sla_due_at = ticket.created_at + timedelta(hours=category.sla_hours)
+            if ticket.sla_due_at > datetime.now(UTC):
+                ticket.sla_breached = False
+            changes["team_id"] = {"from": str(old_team_id), "to": str(category.team_id)}
+            changes["sla_due_at"] = {"to": ticket.sla_due_at.isoformat()}
+            # §5 #3: the new team learns it has a ticket.
+            if category.team_id != old_team_id:
+                await self._notify_team(ticket, category)
 
         self._add_audit(
             actor_id=actor.id,
@@ -472,8 +486,6 @@ class TicketService:
                         "this ticket is queued to."
                     )
 
-        # Flush the DELETE before adding: SQLAlchemy runs INSERTs before DELETEs,
-        # which would break the one-assignee-per-ticket index.
         for owner in [o for o in ticket.owners if o.role == TicketOwnerRole.ASSIGNEE]:
             ticket.owners.remove(owner)
         await self.db.flush()
