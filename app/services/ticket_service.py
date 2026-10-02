@@ -5,9 +5,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic_core import to_jsonable_python
-from sqlalchemy import Select, func, or_, select, text
+from sqlalchemy import Select, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.sql.functions import Function
 
 from app.core.exceptions import (
     BadRequest,
@@ -63,6 +64,8 @@ ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
 }
 
 
+def _search_query(text: str) -> Function[Any]:
+    return func.websearch_to_tsquery("english", text)
 class TicketService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -120,23 +123,15 @@ class TicketService:
             conditions.append(Ticket.created_at <= filters.created_before)
 
         if filters.q:
-            pattern = (
-                filters.q.replace("\\", "\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_")
-            )
-            term = f"%{pattern}%"
-
-            conditions.append(
-                or_(
-                    Ticket.title.ilike(term, escape="\\"),
-                    Ticket.description.ilike(term, escape="\\"),
-                )
-            )
+            conditions.append(Ticket.search_vector.op("@@")(_search_query(filters.q)))
 
         return conditions
 
     def _apply_sort(self, stmt: Select, filters: TicketFilters) -> Select:
+        if filters.sort == TicketSortField.RELEVANCE and filters.q:
+            rank = func.ts_rank_cd(Ticket.search_vector, _search_query(filters.q))
+            return stmt.order_by(rank.desc(), Ticket.created_at.desc(), Ticket.id.desc())
+
         columns = {
             TicketSortField.CREATED_AT: Ticket.created_at,
             TicketSortField.UPDATED_AT: Ticket.updated_at,

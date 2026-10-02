@@ -1334,7 +1334,7 @@ export interface components {
          * TicketSortField
          * @enum {string}
          */
-        TicketSortField: "created_at" | "updated_at" | "priority" | "sla_due_at" | "status";
+        TicketSortField: "created_at" | "updated_at" | "priority" | "sla_due_at" | "status" | "relevance";
         /**
          * TicketStatus
          * @enum {string}

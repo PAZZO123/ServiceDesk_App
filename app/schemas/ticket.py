@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import Query
 from pydantic import Field, field_validator, model_validator
 
+from app.core.exceptions import BadRequest
 from app.models.enums import TicketPriority, TicketStatus
 from app.schemas.common import APISchema
 from app.schemas.user import UserPublic
@@ -122,6 +123,7 @@ class TicketSortField(StrEnum):
     PRIORITY = "priority"
     SLA_DUE_AT = "sla_due_at"
     STATUS = "status"
+    RELEVANCE = "relevance"
     
 class SortOrder(StrEnum):
     ASC = "asc"
@@ -160,13 +162,15 @@ class TicketFilters(APISchema):
     
     @model_validator(mode="after")
     def dates_must_be_ordered(self) -> "TicketFilters":
-        """Reject a range that cannot contain anything."""
         if (
             self.created_after is not None
             and self.created_before is not None
             and self.created_after > self.created_before
         ):
-            raise ValueError("created_after must be earlier than created_before.")
+            raise BadRequest("created_after must be earlier than created_before.")
+        # "Best match first" means nothing without a search text.
+        if self.sort == TicketSortField.RELEVANCE and not self.q:
+            raise BadRequest("sort=relevance needs a search text in q.")
         return self
     @property
     def has_date_range(self) ->bool:

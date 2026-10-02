@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
@@ -21,6 +22,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import TicketOwnerRole, TicketPriority, TicketStatus
+
+SEARCH_EXPRESSION = (
+    "setweight(to_tsvector('english', coalesce(title, '')), 'A') || "
+    "setweight(to_tsvector('english', coalesce(description, '')), 'B')"
+)
 
 if TYPE_CHECKING:
     from app.models.attachment import Attachment
@@ -104,6 +110,7 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
 
     search_vector: Mapped[str | None] = mapped_column(
         TSVECTOR,
+        Computed(SEARCH_EXPRESSION, persisted=True),
         nullable=True,
         deferred=True,
     )
