@@ -59,7 +59,7 @@ def _create_token(
     payload: dict[str, Any] = {
         "sub": str(subject),
         "exp": expires_at,
-        "iat": now,
+        "iat": now.timestamp(),
         "jti": jti,
         "token_type": token_type.value,
     }

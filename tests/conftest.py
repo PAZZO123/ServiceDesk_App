@@ -29,6 +29,7 @@ from app.models.enums import TeamRole  # noqa: E402
 from app.models.role import Role  # noqa: E402
 from app.models.team import Category, Team, TeamMembership  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.core.cache import redis_client  # noqa: E402
 
 PASSWORD = "Correct-Horse-42"
 
@@ -53,16 +54,15 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 KEEP_TABLES = {"roles", "permissions", "role_permissions"}
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True)  
 async def clean_tables() -> None:
     names = ", ".join(
         t.name for t in Base.metadata.sorted_tables if t.name not in KEEP_TABLES
     )
     async with engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
-        # Roles created by a test go; the built-in ones stay. Their grants
-        # in role_permissions go too (ON DELETE CASCADE).
         await conn.execute(text("DELETE FROM roles WHERE NOT is_system"))
+    await redis_client.flushdb()
 
 
 @pytest.fixture(scope="session", autouse=True)
