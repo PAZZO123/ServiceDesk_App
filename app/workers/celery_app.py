@@ -6,7 +6,7 @@ celery_app = Celery(
     "servicedesk",  
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.workers.email_tasks"],
+    include=["app.workers.email_tasks","app.workers.sla_tasks"],
 )
 
 celery_app.conf.update(
@@ -30,3 +30,11 @@ celery_app.conf.update(
         "interval_max": 1,
     },
 )
+
+celery_app.conf.beat_schedule={
+    "sla-sweep-every-minute":{
+        "task":"sla.sweep_breaches",
+        "schedule":60.0,
+        "options":{"expires":55}
+    }
+}
