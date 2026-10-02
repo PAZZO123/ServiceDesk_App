@@ -102,7 +102,7 @@ class Settings(BaseSettings):
 # the singleton accossor
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings() #type:ignore[call-arg]
 
 
-settings = get_settings()
+settings = get_settings() 

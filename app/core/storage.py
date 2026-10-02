@@ -41,7 +41,7 @@ def safe_header_filename(name:str)->str:
     cleaned = cleaned.replace("\\", "/")
     return PurePosixPath(cleaned).name or "download"
 
-async def save_upload(upload:UploadFile, max_bytes:int)->tuple[str, str, str]:
+async def save_upload(upload:UploadFile, max_bytes:int)->tuple[str, str, int]:
     first_chunk= await upload.read(CHUNK_SIZE)
     if not first_chunk:
         raise UnsupportedFileType("The file is empty")

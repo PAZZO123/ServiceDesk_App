@@ -19,7 +19,7 @@ class AttachmentRead(APISchema):
     created_at: datetime
     uploader: UserPublic
 
-    @computed_field  
+    @computed_field  # type: ignore[misc, prop-decorator]
     @property
     def download_url(self) -> str:
         return f"{settings.API_V1_PREFIX}/attachments/{self.id}/download"

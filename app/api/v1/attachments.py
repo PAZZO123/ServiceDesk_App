@@ -43,6 +43,7 @@ async def _ticket_for_attachment(
     if attachement.ticket_id is not None:
         ticket= await tickets.get_by_id(attachement.ticket_id)
     else:
+        assert attachement.comment_id is not None
         comment= await comments.require_by_id(attachement.comment_id)
         if not perms.can_see_comment(comment):
             raise AttachmentNotFound()
@@ -187,11 +188,11 @@ async def delete_attachment(
     client:ClientInfo,
 )->None:
     attachment= await attachments.require_by_id(attachment_id)
-    await _ticket_for_attachment(attachment, tickets, comments, perms)
+    ticket= await _ticket_for_attachment(attachment, tickets, comments, perms)
     if attachment.uploaded_by !=perms.user.id and not perms.can_moderate_content:
         raise PermissionDenied("You can only delete files you uploaded")
     
     await attachments.delete(
-        attachment, actor=perms.user, ip_address=client["ip_address"]
+        attachment, actor=perms.user,ticket=ticket, ip_address=client["ip_address"]
     )
 

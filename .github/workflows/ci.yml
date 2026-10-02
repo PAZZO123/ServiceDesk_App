@@ -1,0 +1,77 @@
+# GitHub runs this file on every push to main and on every pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    # A fresh Linux machine every run. This is where Windows-only
+    # problems show up (pattern 7 in HANDOVER section 10).
+    runs-on: ubuntu-latest
+
+    # A real PostgreSQL 16, like docker-compose, started next to the job.
+    # Not SQLite: our code uses advisory locks, pg_notify, partial indexes
+    # and enums. SQLite would fail - or worse, pass while hiding bugs.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: servicedesk
+          POSTGRES_PASSWORD: servicedesk # throwaway CI database, not a secret
+          POSTGRES_DB: servicedesk_test
+        ports:
+          - 5432:5432
+        # Wait until Postgres accepts connections. Otherwise the tests
+        # may start before the database is up.
+        options: >-
+          --health-cmd "pg_isready -U servicedesk"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    # .env is not in git (correct - it has your real Gmail password).
+    # pydantic-settings reads environment variables too, so we set
+    # everything Settings requires here. SECRET_KEY is a dummy: it must
+    # be at least 32 characters and must not contain "change-me".
+    env:
+      SECRET_KEY: ci-only-secret-key-not-used-anywhere-else-0123456789
+      POSTGRES_USER: servicedesk
+      POSTGRES_PASSWORD: servicedesk
+      POSTGRES_DB: servicedesk_test
+      DATABASE_URL: postgresql+asyncpg://servicedesk:servicedesk@localhost:5432/servicedesk_test
+      TEST_DATABASE_URL: postgresql+asyncpg://servicedesk:servicedesk@localhost:5432/servicedesk_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13" # same as your .venv
+          # Re-use downloaded packages between runs; the cache resets
+          # whenever the lock file changes.
+          cache: pip
+          cache-dependency-path: requirements.lock.txt
+
+      # python-magic on Linux needs the C library libmagic from the OS.
+      # (On Windows, python-magic-bin ships its own copy.)
+      - name: Install libmagic
+        run: sudo apt-get update && sudo apt-get install -y libmagic1
+
+      # The LOCK file, not requirements.txt: CI installs exactly the
+      # versions you tested with, so a new FastAPI release cannot turn
+      # CI red overnight.
+      - name: Install Python packages
+        run: pip install -r requirements.lock.txt
+
+      # Cheapest check first: if ruff fails, we don't wait for the tests.
+      - name: Ruff
+        run: ruff check app tests
+
+      - name: Mypy
+        run: mypy app tests --ignore-missing-imports
+
+      - name: Pytest
+        run: python -m pytest -q

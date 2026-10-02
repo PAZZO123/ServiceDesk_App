@@ -69,7 +69,11 @@ class AttachmentService:
         ip_address: str | None = None,
     ) -> Attachment:
        
-        if (ticket is None) == (comment is None):
+        if ticket is not None and comment is None:
+            ticket_id = ticket.id
+        elif comment is not None and ticket is None:
+            ticket_id = comment.ticket_id
+        else:
             raise BadRequest(
                 "An attachment must belong to exactly one ticket or one comment."
             )
@@ -102,9 +106,10 @@ class AttachmentService:
 
             add_audit(
                 self.db,
+                entity_id=ticket_id,#type: ignore
                 actor_id=uploader.id,
                 entity_type="ticket",
-                entity_id=ticket.id if ticket else comment.ticket_id, 
+                
                 action="attachment_added",
                 changes={
                     "attachment_id": str(attachment.id),
@@ -136,6 +141,7 @@ class AttachmentService:
         self,
         attachment: Attachment,
         actor: User,
+        ticket:Ticket,
         *,
         ip_address: str | None = None,
     ) -> None:
@@ -143,9 +149,10 @@ class AttachmentService:
 
         add_audit(
             self.db,
+             entity_id=ticket.id,#type:ignore
             actor_id=actor.id,
             entity_type="ticket",
-            entity_id=attachment.ticket_id or attachment.comment_id,  # type: ignore[arg-type]
+          
             action="attachment_removed",
             changes={
                 "attachment_id": str(attachment.id),
