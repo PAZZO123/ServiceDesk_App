@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+
 import pytest
 from httpx import AsyncClient
 from limits.aio.storage import RedisStorage

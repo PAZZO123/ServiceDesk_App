@@ -1,21 +1,27 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import settings
 
 celery_app = Celery(
-    "servicedesk",  
+    "servicedesk",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.workers.email_tasks","app.workers.sla_tasks"],
+    
+    include=[
+        "app.workers.email_tasks",
+        "app.workers.sla_tasks",
+        "app.workers.file_tasks",
+    ],
 )
 
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-   
+
     task_ignore_result=True,
-   
+
     timezone="UTC",
     enable_utc=True,
 
@@ -31,10 +37,14 @@ celery_app.conf.update(
     },
 )
 
-celery_app.conf.beat_schedule={
-    "sla-sweep-every-minute":{
-        "task":"sla.sweep_breaches",
-        "schedule":60.0,
-        "options":{"expires":55}
-    }
+celery_app.conf.beat_schedule = {
+    "sla-sweep-every-minute": {
+        "task": "sla.sweep_breaches",
+        "schedule": 60.0,
+        "options": {"expires": 55},
+    },
+    "orphan-files-nightly": {
+        "task": "files.sweep_orphans",
+        "schedule": crontab(hour=3, minute=0),
+    },
 }
