@@ -60,4 +60,4 @@ redis                   # cache + pub/sub + Celery broker
 celery                  # background task queue
 httpx                   # outbound HTTP for webhooks (also used by
                         # the test client)
-slowapi                 # rate limiting
+limits                  # rate limiting (app/core/rate_limit.py)

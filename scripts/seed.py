@@ -3,12 +3,12 @@ import asyncio
 
 from sqlalchemy import func, select
 
+from app.core.cache import CATEGORIES_KEY, TEAMS_KEY, invalidate, redis_client
 from app.db.session import AsyncSessionLocal, engine
 from app.models.enums import SystemRole
 from app.models.role import Role
 from app.models.team import Category, Team
 from app.models.user import User
-from app.core.cache import CATEGORIES_KEY, TEAMS_KEY, invalidate, redis_client
 
 #The Data
 TEAMS:list[tuple[str, str, str]]=[

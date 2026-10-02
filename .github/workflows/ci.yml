@@ -30,8 +30,8 @@ jobs:
           --health-cmd "pg_isready -U servicedesk"
           --health-interval 5s
           --health-timeout 3s
-          --health-retries 10
-          # Redis for the catalog cache tests (Celery is not needed: no
+          --health-retries 10     
+      # Redis for the catalog cache tests (Celery is not needed: no
       # test sends a task to a queue).
       redis:
         image: redis:7-alpine

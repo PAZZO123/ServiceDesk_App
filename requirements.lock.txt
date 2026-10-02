@@ -55,7 +55,6 @@ PyYAML==6.0.3
 redis==8.1.0
 ruff==0.16.8
 six==1.17.0
-slowapi==0.1.10
 SQLAlchemy==2.0.54
 starlette==1.6.0
 typing-inspection==0.4.4

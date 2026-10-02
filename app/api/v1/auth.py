@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import AuthSvc, ClientInfo, UserSvc, VerifiedUser
 from app.core.exceptions import AlreadyVerified, InvalidCredentials, InvalidToken
+from app.core.rate_limit import rate_limit
 from app.core.security import (
     create_email_verification_token,
     create_password_reset_token,
@@ -38,6 +39,7 @@ router = APIRouter(prefix="/auth", tags=["Authenticated"])
 @router.post(
     "/register",
     response_model=RegisterResponse,
+    dependencies=[Depends(rate_limit("5/hour", "register"))],
     status_code=status.HTTP_201_CREATED,
     summary="create an account",
     responses={409: {"description": "Email Address already registered."}},
@@ -83,6 +85,7 @@ async def verify_email(
 @router.post(
     "/resend-verification",
     response_model=Message,
+    dependencies=[Depends(rate_limit("3/hour", "resend_verification"))],
     summary="Send the verification email again",
 )
 async def resend_verification(
@@ -104,6 +107,7 @@ async def resend_verification(
 @router.post(
     "/login",
     response_model=TokenPair,
+    dependencies=[Depends(rate_limit("5/minute", "login"))],
     summary="Sign in",
     responses={
         401: {"description": "Incorrect email or password"},
@@ -193,6 +197,7 @@ async def update_my_profile(
 @router.post(
     "/password-reset",
     response_model=Message,
+    dependencies=[Depends(rate_limit("3/hour", "password_reset"))],
     summary="Request a password reset link",
 )
 async def request_password_reset(
