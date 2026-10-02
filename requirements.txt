@@ -33,7 +33,10 @@ email-validator         # makes Pydantic's EmailStr type work.
                         # Without it, EmailStr raises an ImportError.
 
 # ---- Security (Day 2) --------------------------------------
-passlib[bcrypt]         # password hashing
+bcrypt                  # password hashing - used directly since Day 2.
+                        # Must be listed itself: it used to arrive only
+                        # as part of passlib[bcrypt]. Deleting passlib
+                        # alone would have removed bcrypt too.
 pyjwt                   # creating and verifying JWT tokens
 itsdangerous            # signed, EXPIRING tokens for email
                         # verification and password reset links
@@ -47,14 +50,14 @@ jinja2                  # HTML email templates
 # ---- Files (Day 5) -----------------------------------------
 aiofiles                # async file read/write, so large uploads do
                         # not block the event loop
-python-magic-bin        # detects a file's REAL type from its magic
-                        # bytes. Windows needs the -bin variant;
-                        # on Linux/Mac it is plain python-magic.
+python-magic-bin ; sys_platform == "win32"   # Windows: bundles libmagic
+python-magic ; sys_platform != "win32"       # Linux/Mac: uses the system
+                                             # libmagic (CI installs it
+                                             # with apt-get)
 
 # ---- Realtime, cache, queue (Days 6-7) ---------------------
 redis                   # cache + pub/sub + Celery broker
 celery                  # background task queue
-sse-starlette           # Server-Sent Events responses
 httpx                   # outbound HTTP for webhooks (also used by
                         # the test client)
 slowapi                 # rate limiting
