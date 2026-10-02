@@ -49,16 +49,20 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
 
 #Every test starts with empty tables 
-KEEP_TABLES = {"roles"}
+# Reference data written by the migrations - kept between tests.
+KEEP_TABLES = {"roles", "permissions", "role_permissions"}
 
 
-@pytest.fixture(autouse=True)  
+@pytest.fixture(autouse=True)
 async def clean_tables() -> None:
     names = ", ".join(
         t.name for t in Base.metadata.sorted_tables if t.name not in KEEP_TABLES
     )
     async with engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE {names} RESTART IDENTITY CASCADE"))
+        # Roles created by a test go; the built-in ones stay. Their grants
+        # in role_permissions go too (ON DELETE CASCADE).
+        await conn.execute(text("DELETE FROM roles WHERE NOT is_system"))
 
 
 @pytest.fixture(scope="session", autouse=True)

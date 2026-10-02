@@ -17,6 +17,7 @@ class Permission(StrEnum):
     CONTENT_MODERATE = "content.moderate"
     TEAM_MANAGE = "team.manage"
     USER_MANAGE = "user.manage"
+    ROLE_MANAGE = "role.manage"
 
 
 class TicketOwnerRole(StrEnum):

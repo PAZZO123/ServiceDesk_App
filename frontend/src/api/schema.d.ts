@@ -567,8 +567,60 @@ export interface paths {
         /** List roles and what they grant */
         get: operations["list_roles_api_v1_roles_get"];
         put?: never;
+        /** Create a role */
+        post: operations["create_role_api_v1_roles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every permission a role can grant */
+        get: operations["list_permissions_api_v1_permissions_get"];
+        put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roles/{role_id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the permissions of a role */
+        put: operations["set_role_permissions_api_v1_roles__role_id__permissions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roles/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a role */
+        delete: operations["delete_role_api_v1_roles__role_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1033,6 +1085,18 @@ export interface components {
             /** Confirm Password */
             confirm_password: string;
         };
+        /**
+         * Permission
+         * @enum {string}
+         */
+        Permission: "ticket.view_all" | "ticket.work" | "ticket.delete" | "ticket.starts_high" | "comment.read_internal" | "content.moderate" | "team.manage" | "user.manage" | "role.manage";
+        /** PermissionRead */
+        PermissionRead: {
+            /** Code */
+            code: string;
+            /** Description */
+            description: string;
+        };
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
@@ -1051,6 +1115,8 @@ export interface components {
              * @example observer
              */
             role: string;
+            /** Signature */
+            signature?: string | null;
         };
         /** RoleBrief */
         RoleBrief: {
@@ -1058,6 +1124,23 @@ export interface components {
             name: string;
             /** Permissions */
             permissions: string[];
+        };
+        /** RoleCreate */
+        RoleCreate: {
+            /**
+             * Name
+             * @example senior_agent
+             */
+            name: string;
+            /** Description */
+            description?: string | null;
+            /** Permissions */
+            permissions?: components["schemas"]["Permission"][];
+        };
+        /** RolePermissionsUpdate */
+        RolePermissionsUpdate: {
+            /** Permissions */
+            permissions: components["schemas"]["Permission"][];
         };
         /** RoleRead */
         RoleRead: {
@@ -1244,13 +1327,6 @@ export interface components {
             resolved_at?: string | null;
             /** Closed At */
             closed_at?: string | null;
-            /** Duplicate Group Id */
-            duplicate_group_id?: string | null;
-            /**
-             * Is Duplicate Canonical
-             * @default false
-             */
-            is_duplicate_canonical: boolean;
             /** Watchers */
             watchers?: components["schemas"]["UserPublic"][];
         };
@@ -2905,6 +2981,165 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoleRead"][];
+                };
+            };
+        };
+    };
+    create_role_api_v1_roles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleRead"];
+                };
+            };
+            /** @description You may only grant permissions you have yourself */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A role with this name already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_permissions_api_v1_permissions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionRead"][];
+                };
+            };
+        };
+    };
+    set_role_permissions_api_v1_roles__role_id__permissions_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolePermissionsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleRead"];
+                };
+            };
+            /** @description Your own role, or a permission you do not have */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such role */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_role_api_v1_roles__role_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such role */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Built-in role, or users still have it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

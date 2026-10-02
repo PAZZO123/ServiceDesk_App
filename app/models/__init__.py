@@ -10,10 +10,10 @@ from app.models.enums import (
     TicketPriority,
     TicketStatus,
 )
-from app.models.role import Role
+from app.models.role import PermissionRecord, Role, role_permissions
 from app.models.tag import Tag, ticket_tags
 from app.models.team import Category, Team, TeamMembership
-from app.models.ticket import Comment, DuplicateGroup, Ticket, TicketOwner
+from app.models.ticket import Comment, Ticket, TicketOwner
 from app.models.user import User
 
 __all__ = [
@@ -22,10 +22,10 @@ __all__ = [
     "Base",
     "Category",
     "Comment",
-    "DuplicateGroup",
     "Notification",
     "NotificationType",
     "Permission",
+    "PermissionRecord",
     "RefreshToken",
     "Role",
     "SystemRole",
@@ -39,5 +39,6 @@ __all__ = [
     "TicketPriority",
     "TicketStatus",
     "User",
+    "role_permissions",
     "ticket_tags",
 ]

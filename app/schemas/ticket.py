@@ -113,8 +113,6 @@ class TicketRead(TicketListItem):
     resolved_at: datetime | None = None
     closed_at: datetime | None = None
 
-    duplicate_group_id: uuid.UUID | None = None
-    is_duplicate_canonical: bool = False
     watchers: list[UserPublic] = Field(default_factory=list)
     
 #Filtering and Sorting

@@ -157,6 +157,21 @@ class AttachmentNotFound(NotFoundError):
     code = "attachment_not_found"
     message = "Attachment not found."
     
+class RoleNotFound(NotFoundError):
+    code = "role_not_found"
+    message = "Role not found."
+
+
+class RoleAlreadyExists(ConflictError):
+    code = "role_already_exists"
+    message = "A role with this name already exists."
+
+
+class RoleInUse(ConflictError):
+    code = "role_in_use"
+    message = "This role cannot be removed."
+
+
 class NotificationNotFound(NotFoundError):
     code = "notification_not_found"
     message = "Notification not found."

@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
-    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -77,17 +76,6 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         index=True,
     )
 
-    duplicate_group_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("duplicate_groups.id", ondelete="RESTRICT"),
-        nullable=True,
-        index=True,
-    )
-
-    is_duplicate_canonical: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
-
     sla_due_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
@@ -129,10 +117,6 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     category: Mapped["Category"] = relationship(back_populates="tickets")
     team: Mapped["Team"] = relationship(back_populates="tickets")
 
-    duplicate_group: Mapped["DuplicateGroup | None"] = relationship(
-        back_populates="tickets"
-    )
-
     comments: Mapped[list["Comment"]] = relationship(
         back_populates="ticket",
         cascade="all, delete-orphan",
@@ -166,16 +150,6 @@ class Ticket(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
             "ix_tickets_search",
             "search_vector",
             postgresql_using="gin",
-        ),
-        Index(
-            "uq_tickets_one_canonical_per_group",
-            "duplicate_group_id",
-            unique=True,
-            postgresql_where=text("is_duplicate_canonical"),
-        ),
-        CheckConstraint(
-            "NOT is_duplicate_canonical OR duplicate_group_id IS NOT NULL",
-            name="canonical_needs_group",
         ),
     )
 
@@ -252,29 +226,6 @@ class TicketOwner(Base):
 
     def __repr__(self) -> str:
         return f"<TicketOwner {self.role.value} user={self.user_id} ticket={self.ticket_id}>"
-
-
-class DuplicateGroup(Base, UUIDPrimaryKeyMixin):
-    __tablename__ = "duplicate_groups"
-
-    created_by: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
-
-    reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-    tickets: Mapped[list["Ticket"]] = relationship(back_populates="duplicate_group")
-    creator: Mapped["User"] = relationship()
-
-    def __repr__(self) -> str:
-        return f"<DuplicateGroup {self.id}>"
 
 
 class Comment(Base, UUIDPrimaryKeyMixin, TimestampMixin):

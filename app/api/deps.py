@@ -109,12 +109,12 @@ VerifiedUser = Annotated[User, Depends(get_verified_user)]
 
 
 # Authorization
-def require_permission(permission: Permission):
+# Several permissions = ANY of them is enough.
+def require_permission(*permissions: Permission):
     async def dependency(user: VerifiedUser) -> User:
-        if not user.role.grants(permission):
-            raise PermissionDenied(
-                f"This action requires the '{permission.value}' permission."
-            )
+        if not any(user.role.grants(p) for p in permissions):
+            names = "' or '".join(p.value for p in permissions)
+            raise PermissionDenied(f"This action requires the '{names}' permission.")
         return user
 
     return dependency
@@ -122,6 +122,11 @@ def require_permission(permission: Permission):
 
 RequireTeamManager = Annotated[User, Depends(require_permission(Permission.TEAM_MANAGE))]
 RequireUserManager = Annotated[User, Depends(require_permission(Permission.USER_MANAGE))]
+RequireRoleManager = Annotated[User, Depends(require_permission(Permission.ROLE_MANAGE))]
+# Reading the role list: needed both to assign roles and to edit them.
+RequireRoleReader = Annotated[
+    User, Depends(require_permission(Permission.USER_MANAGE, Permission.ROLE_MANAGE))
+]
 
 async def get_permissions(user: VerifiedUser, db: DbSession) -> TicketPermissions:
     return TicketPermissions(user=user, team_ids=await load_team_ids(db, user))
