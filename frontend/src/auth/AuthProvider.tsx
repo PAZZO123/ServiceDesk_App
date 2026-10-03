@@ -9,6 +9,7 @@ import { AuthContext, type AuthStatus, type PermissionName } from "./auth-contex
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
+  const [signedOutByUser, setSignedOutByUser] = useState(false);
 
   const [status, setStatus] = useState<AuthStatus>(() =>
     tokens.getRefresh() ? "loading" : "signed-out",
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const pair = await apiLogin(email, password);
       tokens.set(pair);
+      setSignedOutByUser(false);
       queryClient.clear();
       const me = await getMe();
       setUser(me);
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const refresh = tokens.getRefresh();
+    setSignedOutByUser(true);
     try {
       if (refresh) await apiLogout(refresh);
     } finally {
@@ -72,8 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, status, login, logout, can }),
-    [user, status, login, logout, can],
+    () => ({ user, status, signedOutByUser, login, logout, setUser, can }),
+    [user, status, signedOutByUser, login, logout, can],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

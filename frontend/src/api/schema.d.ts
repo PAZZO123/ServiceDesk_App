@@ -745,6 +745,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SLA performance per team */
+        get: operations["team_sla_api_v1_analytics_teams_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1209,6 +1226,32 @@ export interface components {
          * @enum {string}
          */
         TeamRole: "member" | "lead";
+        /** TeamSlaStats */
+        TeamSlaStats: {
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Created */
+            created: number;
+            /** Resolved */
+            resolved: number;
+            /** Breached */
+            breached: number;
+            /** Median Hours */
+            median_hours: number | null;
+            /** Sla Met Pct */
+            sla_met_pct: number | null;
+            /** Share Pct */
+            share_pct: number | null;
+            /** Sla Rank */
+            sla_rank: number;
+        };
         /** TicketCreate */
         TicketCreate: {
             /**
@@ -3343,6 +3386,37 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": unknown;
+                };
+            };
+        };
+    };
+    team_sla_api_v1_analytics_teams_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamSlaStats"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
