@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import RedirectResponse
 
+from app.api.v1.analytics import router as analytics_router
 from app.api.v1.attachments import router as attachment_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.catalog import router as catalog_router
@@ -139,4 +140,5 @@ app.include_router(export_router, prefix=settings.API_V1_PREFIX)
 app.include_router(users_router, prefix=settings.API_V1_PREFIX)
 app.include_router(realtime_router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
+app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
 
