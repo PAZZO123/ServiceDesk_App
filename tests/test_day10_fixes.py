@@ -1,0 +1,71 @@
+
+import asyncio
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import jwt
+import pytest
+from httpx import AsyncClient
+
+from app.core.config import Settings, settings
+from app.core.security import create_access_token
+from app.models.team import Category
+from tests.conftest import MakeUser, auth
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def lock_key_in_new_process(hash_seed: str) -> int:
+    code = "from app.services.ticket_service import reference_lock_key; print(reference_lock_key(2026))"
+    env = {**os.environ, "PYTHONHASHSEED": hash_seed}
+    out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True, check=True)
+    return int(out.stdout.strip().splitlines()[-1])
+
+
+def test_reference_lock_key_is_the_same_in_every_process() -> None:
+    assert lock_key_in_new_process("1") == lock_key_in_new_process("2")
+
+
+async def test_parallel_creates_get_unique_references(
+    client: AsyncClient, make_user: MakeUser, categories: dict[str, Category]
+) -> None:
+    user = await make_user("requester")
+
+    async def create(i: int) -> str:
+        r = await client.post(
+            "/api/v1/tickets",
+            headers=auth(user),
+            json={
+                "title": f"Parallel ticket {i}",
+                "description": "Created at the same time as the others.",
+                "category_id": str(categories["network"].id),
+            },
+        )
+        assert r.status_code == 201, r.text
+        return r.json()["reference"]
+
+    references = await asyncio.gather(*(create(i) for i in range(20)))
+    assert len(set(references)) == 20
+
+
+def test_access_token_lifetime_comes_from_the_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ACCESS_TOKEN_EXPIRE_MINUTES", "7")
+    assert Settings().ACCESS_TOKEN_EXPIRE_MINUTES == 7  # type: ignore[call-arg]
+
+
+def test_access_token_has_no_role_claim() -> None:
+    token = create_access_token("00000000-0000-0000-0000-000000000001")
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    assert "role" not in payload
+    assert payload["exp"] - payload["iat"] == pytest.approx(settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60, abs=1)
+
+
+async def test_feed_refuses_a_sort_it_cannot_honour(client: AsyncClient, make_user: MakeUser) -> None:
+    headers = auth(await make_user("requester"))
+    r = await client.get("/api/v1/tickets/feed", headers=headers, params={"sort": "priority"})
+    assert r.status_code == 400, r.text
+    r = await client.get("/api/v1/tickets/feed", headers=headers)
+    assert r.status_code == 200, r.text
+    assert set(r.json()) == {"items", "next_cursor", "has_more"}

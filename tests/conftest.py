@@ -123,7 +123,7 @@ async def make_user(password_hash: str) -> MakeUser:
 
 
 def auth(user: User) -> dict[str, str]:
-    token = create_access_token(user.id, user.role.name)
+    token = create_access_token(user.id)
     return {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture

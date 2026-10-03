@@ -4,18 +4,21 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import ClientInfo, DbSession, Perms
-from app.core.exceptions import PermissionDenied, TicketNotFound
+from app.core.exceptions import BadRequest, PermissionDenied, TicketNotFound
 from app.models.ticket import Ticket
 from app.schemas.comment import CommentCreate
 from app.schemas.common import Page, PaginationParams
 from app.schemas.ticket import (
     AssignRequest,
+    SortOrder,
     StatusChange,
     TagsUpdate,
     TicketCreate,
+    TicketFeedPage,
     TicketFilters,
     TicketListItem,
     TicketRead,
+    TicketSortField,
     TicketUpdate,
 )
 from app.services.comment_service import CommentService
@@ -59,8 +62,9 @@ async def list_tickets(
 
 @router.get(
     "/feed",
-    response_model=dict,
+    response_model=TicketFeedPage,
     summary="List tickets with cursor pagination",
+    responses={400: {"description": "Bad cursor, or a sort the feed cannot use"}},
 )
 async def ticket_feed(
     svc: TicketSvc,
@@ -68,21 +72,20 @@ async def ticket_feed(
     filters: Annotated[TicketFilters, Depends()],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     cursor: Annotated[str | None, Query()] = None,
-) -> dict:
+) -> TicketFeedPage:
+    if filters.sort != TicketSortField.CREATED_AT or filters.order != SortOrder.DESC:
+        raise BadRequest("The feed is always newest first. Use GET /tickets to sort.")
     tickets, next_cursor = await svc.list_tickets_cursor(
         filters,
         limit=limit,
         cursor=cursor,
         extra_conditions=perms.visibility_conditions(),
     )
-
-    return {
-        "items": [
-            TicketListItem.model_validate(t).model_dump(mode="json") for t in tickets
-        ],
-        "next_cursor": next_cursor,
-        "has_more": next_cursor is not None,
-    }
+    return TicketFeedPage(
+        items=[TicketListItem.model_validate(t) for t in tickets],
+        next_cursor=next_cursor,
+        has_more=next_cursor is not None,
+    )
 
 
 @router.get(

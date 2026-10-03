@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = Field(min_length=32)
     JWT_ALGORITHM: str = "HS256"
-    ACCES_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     EMAIL_TOKEN_EXPIRE_HOURS: int = 24
     RESET_TOKEN_EXPIRE_MINUTES: int = 30

@@ -1,6 +1,7 @@
 
 import base64
 import uuid
+import zlib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -63,6 +64,8 @@ ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.CLOSED: set(),
 }
 
+def reference_lock_key(year: int) -> int:
+    return zlib.crc32(f"ticket_reference:{year}".encode())
 
 def _search_query(text: str) -> Function[Any]:
     return func.websearch_to_tsquery("english", text)
@@ -247,7 +250,7 @@ class TicketService:
 
     async def _next_reference(self) -> str:
         year = datetime.now(UTC).year
-        lock_key = hash(f"ticket_reference:{year}") % (2**31)
+        lock_key = reference_lock_key(year)
 
         await self.db.execute(
             text("SELECT pg_advisory_xact_lock(:key)"),

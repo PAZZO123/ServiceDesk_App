@@ -69,22 +69,13 @@ def _create_token(
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return token, jti, expires_at
 
-
-def create_access_token(
-    user_id: uuid.UUID | str, role: str, extra_claims: dict[str, Any] | None = None
-) -> str:
-
-    claims = {"role": role}
-    if extra_claims:
-        claims.update(extra_claims)
-
+def create_access_token(user_id: uuid.UUID | str) -> str:
     token, _, _ = _create_token(
         subject=str(user_id),
         token_type=TokenType.ACCESS,
-        expires_delta=timedelta(minutes=settings.ACCES_TOKEN_EXPIRE_MINUTES),
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return token
-
 
 def create_refresh_token(
     user_id: uuid.UUID | str, family_id: uuid.UUID

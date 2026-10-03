@@ -67,7 +67,7 @@ class AuthService:
         if family_id is None:
             family_id = uuid.uuid4()
 
-        access = create_access_token(user_id=user.id, role=user.role.name)
+        access = create_access_token(user_id=user.id)
 
         refresh, jti, expires_at = create_refresh_token(
             user_id=user.id, family_id=family_id
@@ -88,7 +88,7 @@ class AuthService:
         return TokenPair(
             access_token=access,
             refresh_token=refresh,
-            expires_in=settings.ACCES_TOKEN_EXPIRE_MINUTES * 60,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
 
     async def rotate_refresh_token(

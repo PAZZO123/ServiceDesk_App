@@ -130,7 +130,10 @@ class SortOrder(StrEnum):
     DESC = "desc"
     
 
-    
+class TicketFeedPage(APISchema):
+    items: list[TicketListItem]
+    next_cursor: str | None = None
+    has_more: bool   
 class TicketFilters(APISchema):
     status: TicketStatus | None = Query(
         default=None, description="Only tickets in this state."
