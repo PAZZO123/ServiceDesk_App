@@ -320,6 +320,8 @@ class TicketService:
             changes["priority_reason"] = priority_reason
 
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=requester.id,
             entity_id=ticket.id,
             action="created",
@@ -380,6 +382,8 @@ class TicketService:
                 await self._notify_team(ticket, category)
 
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="updated",
@@ -418,6 +422,8 @@ class TicketService:
             ticket.closed_at = now
 
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="status_changed",
@@ -441,6 +447,8 @@ class TicketService:
         ticket.deleted_at = datetime.now(UTC)
 
         add_audit(
+            self.db,
+                        entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="deleted",
@@ -493,6 +501,8 @@ class TicketService:
             ticket.owners.append(TicketOwner(user=assignee, role=TicketOwnerRole.ASSIGNEE))
 
         add_audit(
+            self.db,
+                        entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="assigned" if assignee_id is not None else "unassigned",
@@ -548,6 +558,8 @@ class TicketService:
             return ticket
         ticket.tags = tags
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="tags_changed",

@@ -94,6 +94,8 @@ class CommentService:
             ticket.first_response_at = now
 
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=author.id,
             entity_id=ticket.id,
             action="commented",
@@ -128,6 +130,8 @@ class CommentService:
         comment.body = data.body
 
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=comment.ticket_id,
             action="comment_edited",
@@ -153,6 +157,8 @@ class CommentService:
         ip_address: str | None = None,
     ) -> None:
         add_audit(
+            self.db,
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=comment.ticket_id,
             action="comment_deleted",

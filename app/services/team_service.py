@@ -65,6 +65,8 @@ class TeamService:
         self.db.add(membership)
 
         add_audit(
+            self.db,
+            entity_type="team",
             actor_id=actor.id,
             entity_id=team.id,
             action="member_added",
@@ -105,6 +107,8 @@ class TeamService:
         membership.role_in_team = role
 
         add_audit(
+            self.db,
+            entity_type="team",
             actor_id=actor.id,
             entity_id=team.id,
             action="member_role_changed",
@@ -147,6 +151,8 @@ class TeamService:
         )
 
         add_audit(
+            self.db,
+            entity_type="team",
             actor_id=actor.id,
             entity_id=team.id,
             action="member_removed",

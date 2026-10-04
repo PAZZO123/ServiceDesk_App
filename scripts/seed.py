@@ -7,6 +7,7 @@ from app.core.cache import CATEGORIES_KEY, TEAMS_KEY, invalidate, redis_client
 from app.db.session import AsyncSessionLocal, engine
 from app.models.enums import SystemRole
 from app.models.role import Role
+from app.models.tag import Tag
 from app.models.team import Category, Team
 from app.models.user import User
 
@@ -49,6 +50,18 @@ CATEGORIES: list[tuple[str, str, int, str]]=[
     ("Password Reset", "accounts", 2, "Locked out or forgotten password."),
     ("New Account Request", "accounts", 24, "Onboarding a new joiner."),
     ("Permission Change", "accounts", 8, "Access to a system, folder or mailbox."),
+]
+
+TAGS: list[tuple[str, str]] = [
+    # (name, color). Color must be #RRGGBB: the database checks it.
+    ("urgent", "#DC2626"),
+    ("vip", "#9333EA"),
+    ("hardware", "#2563EB"),
+    ("network", "#0891B2"),
+    ("security", "#EA580C"),
+    ("onboarding", "#16A34A"),
+    ("remote", "#CA8A04"),
+    ("waiting-vendor", "#6B7280"),
 ]
 
 # Seeding
@@ -94,6 +107,16 @@ async def seed_categories(db, teams:dict[str, Team])->None:
         f"{len(CATEGORIES)- created} already present."
     )
 
+async def seed_tags(db) -> None:
+    existing = set((await db.scalars(select(Tag.name))).all())
+    created = 0
+    for name, color in TAGS:
+        if name in existing:
+            continue
+        db.add(Tag(name=name, color=color))
+        created += 1
+    await db.flush()
+    print(f"tags      : {created} created, {len(TAGS) - created} already present.")
 
 async def promote_user(db, email:str, role_name: str)-> None:
     user = await db.scalar(select(User).where(func.lower(User.email) == email.lower()))
@@ -113,8 +136,9 @@ async def main( promote_email: str| None, promote_role: str|None)->None:
     print("\n Seeding reference data....")
 
     async with AsyncSessionLocal() as db:
-        teams= await seed_teams(db)
+        teams = await seed_teams(db)
         await seed_categories(db, teams)
+        await seed_tags(db)
         if promote_email and promote_role:
             await promote_user(db, promote_email, promote_role)
         await db.commit()
