@@ -420,7 +420,7 @@ class TicketService:
             ticket.resolved_at = now
         if new_status == TicketStatus.CLOSED and ticket.closed_at is None:
             ticket.closed_at = now
-
+       
         add_audit(
             self.db,
             entity_type="ticket",
@@ -430,6 +430,7 @@ class TicketService:
             changes={"status": {"from": current.value, "to": new_status.value}},
             ip_address=ip_address,
         )
+        self._notify_status_change(ticket, current, new_status, actor)
         await emit_ticket_event(self.db, ticket.id, "status_changed")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
@@ -572,6 +573,28 @@ class TicketService:
         await emit_ticket_event(self.db, ticket.id, "tags_changed")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
+    
+    def _notify_status_change(
+        self, ticket: Ticket, old: TicketStatus, new: TicketStatus, actor: User
+    ) -> None:
+        
+        recipients = {owner.user_id for owner in ticket.owners}
+        recipients.discard(actor.id)
+        for user_id in recipients:
+            self.db.add(
+                Notification(
+                    user_id=user_id,
+                    type=NotificationType.TICKET_STATUS_CHANGED,
+                    payload={
+                        "ticket_id": str(ticket.id),
+                        "reference": ticket.reference,
+                        "title": ticket.title,
+                        "from": old.value,
+                        "to": new.value,
+                        "changed_by": actor.full_name,
+                    },
+                )
+            )
 
 
     async def _notify_team(self, ticket: Ticket, category: Category) -> None:

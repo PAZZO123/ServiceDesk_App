@@ -1,4 +1,5 @@
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from app.core import storage
 from app.core.exceptions import CommentNotFound
-from app.core.permissions import TicketPermissions
+from app.core.permissions import TicketPermissions, load_team_ids
 from app.models.attachment import Attachment
 from app.models.audit import Notification
 from app.models.enums import NotificationType, TicketOwnerRole
@@ -20,7 +21,8 @@ from app.schemas.common import PaginationParams
 from app.services.audit import add_audit
 
 PREVIEW_CHARS = 140
-
+MENTION = re.compile(r"(?<![\w.@])@([A-Za-z0-9][A-Za-z0-9._-]*)")
+MAX_MENTIONS = 10
 
 class CommentService:
     def __init__(self, db: AsyncSession) -> None:
@@ -107,7 +109,9 @@ class CommentService:
             ip_address=ip_address,
         )
 
-        self._notify(ticket, comment, author)
+        mentioned = await self._mentioned_users(ticket, comment, author)
+        self._notify_mentions(ticket, comment, author, mentioned)
+        self._notify(ticket, comment, author, skip={u.id for u in mentioned})
         await emit_ticket_event(
             self.db, ticket.id, "comment_added", internal=comment.is_internal
         )
@@ -187,7 +191,9 @@ class CommentService:
             storage.delete_file(path)
 
     # Internals
-    def _notify(self, ticket: Ticket, comment: Comment, author: User) -> None:
+    def _notify(
+        self, ticket: Ticket, comment: Comment, author: User, skip: set[uuid.UUID]
+    ) -> None:
         requester_id = ticket.requester.id if ticket.requester else None
         assignee_id = ticket.assignee.id if ticket.assignee else None
 
@@ -206,6 +212,7 @@ class CommentService:
 
         recipients.discard(None)
         recipients.discard(author.id)
+        recipients -= skip
 
         for user_id in recipients:
             self.db.add(
@@ -215,6 +222,64 @@ class CommentService:
                     payload={
                         "ticket_id": str(ticket.id),
                         "reference": ticket.reference,
+                        "comment_id": str(comment.id),
+                        "author": author.full_name,
+                        "internal": comment.is_internal,
+                        "preview": comment.body[:PREVIEW_CHARS],
+                    },
+                )
+            )
+            
+    async def _mentioned_users(
+        self, ticket: Ticket, comment: Comment, author: User
+    ) -> list[User]:
+       
+        handles = {h.rstrip(".").lower() for h in MENTION.findall(comment.body)}
+        handles.discard("")
+        if not handles:
+            return []
+        handles = set(sorted(handles)[:MAX_MENTIONS])
+
+       
+        local_part = func.lower(func.split_part(User.email, "@", 1))
+        rows = (
+            await self.db.execute(
+                select(local_part, User).where(
+                    local_part.in_(handles),
+                    User.is_active.is_(True),
+                    User.id != author.id,
+                )
+            )
+        ).all()
+
+        by_handle: dict[str, list[User]] = {}
+        for handle, user in rows:
+            by_handle.setdefault(handle, []).append(user)
+
+        mentioned: list[User] = []
+        for users in by_handle.values():
+        
+            if len(users) != 1:
+                continue
+            user = users[0]
+    
+            perms = TicketPermissions(user=user, team_ids=await load_team_ids(self.db, user))
+            if perms.can_view(ticket) and perms.can_see_comment(comment):
+                mentioned.append(user)
+        return mentioned
+
+    def _notify_mentions(
+        self, ticket: Ticket, comment: Comment, author: User, mentioned: list[User]
+    ) -> None:
+        for user in mentioned:
+            self.db.add(
+                Notification(
+                    user_id=user.id,
+                    type=NotificationType.TICKET_MENTIONED,
+                    payload={
+                        "ticket_id": str(ticket.id),
+                        "reference": ticket.reference,
+                        "title": ticket.title,
                         "comment_id": str(comment.id),
                         "author": author.full_name,
                         "internal": comment.is_internal,
