@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import ClientInfo, DbSession, Perms
+from app.api.deps import ClientInfo, CommentSvc, Perms, TicketSvc
 from app.core.exceptions import BadRequest, PermissionDenied, TicketNotFound
 from app.models.ticket import Ticket
 from app.schemas.comment import CommentCreate
@@ -21,20 +21,8 @@ from app.schemas.ticket import (
     TicketSortField,
     TicketUpdate,
 )
-from app.services.comment_service import CommentService
-from app.services.ticket_service import TicketService
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
-
-
-def _service(db: DbSession) -> TicketService:
-    return TicketService(db)
-
-
-TicketSvc = Annotated[TicketService, Depends(_service)]
-def _comment_service(db:DbSession)->CommentService:
-    return CommentService(db)
-CommentSvc=Annotated[CommentService, Depends(_comment_service)]
 
 @router.get(
     "",

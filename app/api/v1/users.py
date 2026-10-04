@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.deps import (
     ClientInfo,
-    DbSession,
     RequireRoleManager,
     RequireRoleReader,
     RequireUserManager,
+    RoleSvc,
 )
 from app.schemas.common import Page, PaginationParams
 from app.schemas.role import (
@@ -19,17 +19,8 @@ from app.schemas.role import (
     RoleRead,
 )
 from app.schemas.user import UserRead
-from app.services.role_service import RoleService
 
 router = APIRouter(tags=["Users & Roles"])
-
-
-def _service(db: DbSession) -> RoleService:
-    return RoleService(db)
-
-
-RoleSvc = Annotated[RoleService, Depends(_service)]
-
 
 @router.get("/roles", response_model=list[RoleRead], summary="List roles and what they grant")
 async def list_roles(svc: RoleSvc, reader: RequireRoleReader):

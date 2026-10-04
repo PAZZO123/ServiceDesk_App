@@ -1,17 +1,11 @@
 import uuid
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from app.api.deps import ClientInfo, DbSession, RequireTeamManager, VerifiedUser
+from app.api.deps import ClientInfo, RequireTeamManager, TeamSvc, VerifiedUser
 from app.schemas.team import MemberAdd, MemberRead, MemberUpdate
-from app.services.team_services import TeamService
 
 router=APIRouter(prefix="/teams", tags=["Teams"])
-
-def _service(db:DbSession)->TeamService:
-    return TeamService(db)
-TeamSvc=Annotated[TeamService, Depends(_service)]
 
 @router.get(
     "/{team_id}/members",

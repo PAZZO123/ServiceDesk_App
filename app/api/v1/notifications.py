@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
-from app.api.deps import DbSession, VerifiedUser, get_token
+from app.api.deps import DbSession, NotificationSvc, VerifiedUser, get_token
 from app.core.security import TokenType, decode_token
 from app.db.session import AsyncSessionLocal
 from app.realtime.events import inbox_room
@@ -17,14 +17,6 @@ from app.schemas.notification import NotificationRead, UnreadCount
 from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
-
-
-def _service(db: DbSession) -> NotificationService:
-    return NotificationService(db)
-
-
-NotificationSvc = Annotated[NotificationService, Depends(_service)]
-
 
 @router.get("", response_model=Page[NotificationRead], summary="Your notifications, newest first")
 async def list_notifications(

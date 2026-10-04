@@ -3,40 +3,25 @@ import uuid
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, File, UploadFile, status
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import ClientInfo, DbSession, Perms
+from app.api.deps import AttachmentSvc, ClientInfo, CommentSvc, Perms, TicketSvc
 from app.core import storage
 from app.core.exceptions import AttachmentNotFound, PermissionDenied
 from app.models.attachment import Attachment
 from app.models.ticket import Ticket
 from app.schemas.attachment import AttachmentRead
-from app.services.attachment_service import AttachmentService
-from app.services.comment_service import CommentService
-from app.services.ticket_service import TicketService
 
 logger=logging.getLogger(__name__)
 router=APIRouter(tags=["Attachements"])
-def _attachments(db:DbSession)->AttachmentService:
-    return AttachmentService(db)
 
-def _tickets(db:DbSession) ->TicketService:
-    return TicketService(db)
-
-def _comments(db:DbSession)->CommentService:
-    return CommentService(db)
-
-
-AttachmentSvc = Annotated[AttachmentService, Depends(_attachments)]
-TicketSvc = Annotated[TicketService, Depends(_tickets)]
-CommentSvc = Annotated[CommentService, Depends(_comments)]
 
 
 async def _ticket_for_attachment(
     attachement:Attachment,
-    tickets:TicketService,
-    comments:CommentService,
+    tickets:TicketSvc,
+    comments:CommentSvc,
     perms:Perms
     
 )->Ticket:

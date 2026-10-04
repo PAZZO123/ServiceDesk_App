@@ -8,10 +8,14 @@ from pathlib import Path
 import jwt
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.core.config import Settings, settings
 from app.core.security import create_access_token
-from app.models.team import Category
+from app.db.session import AsyncSessionLocal
+from app.models.audit import AuditLog
+from app.models.tag import Tag
+from app.models.team import Category, Team
 from tests.conftest import MakeUser, auth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,3 +73,37 @@ async def test_feed_refuses_a_sort_it_cannot_honour(client: AsyncClient, make_us
     r = await client.get("/api/v1/tickets/feed", headers=headers)
     assert r.status_code == 200, r.text
     assert set(r.json()) == {"items", "next_cursor", "has_more"}
+    
+
+async def test_tags_lists_every_tag_a_to_z(client: AsyncClient, make_user: MakeUser) -> None:
+    # GET /tags: the full list, even tags that no ticket uses yet.
+    # There is no API to create tags, so the test inserts them directly.
+    async with AsyncSessionLocal() as db:
+        db.add_all([Tag(name="vpn", color="#2563EB"), Tag(name="hardware")])
+        await db.commit()
+    r = await client.get("/api/v1/tags", headers=auth(await make_user("requester")))
+    assert r.status_code == 200, r.text
+    assert [t["name"] for t in r.json()] == ["hardware", "vpn"]
+    assert r.json()[1]["color"] == "#2563EB"
+
+
+async def test_tags_needs_a_signed_in_user(client: AsyncClient) -> None:
+    r = await client.get("/api/v1/tags")
+    assert r.status_code == 401, r.text
+
+
+async def test_shared_audit_helper_still_records_team_changes(
+    client: AsyncClient, make_user: MakeUser, teams: dict[str, Team]
+) -> None:
+    # The three private _add_audit copies were replaced by services/audit.py.
+    # A team change must still write a row with entity_type "team".
+    admin = await make_user("admin")
+    agent = await make_user("agent")
+    team_id = teams["network"].id
+    r = await client.post(
+        f"/api/v1/teams/{team_id}/members", headers=auth(admin), json={"user_id": str(agent.id)}
+    )
+    assert r.status_code == 201, r.text
+    async with AsyncSessionLocal() as db:
+        row = (await db.scalars(select(AuditLog).where(AuditLog.action == "member_added"))).one()
+    assert (row.entity_type, row.entity_id, row.actor_id) == ("team", team_id, admin.id)

@@ -4,26 +4,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
-from app.api.deps import ClientInfo, DbSession, Perms
+from app.api.deps import ClientInfo, CommentSvc, Perms, TicketSvc
 from app.core.exceptions import CommentNotFound, PermissionDenied
 from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate
 from app.schemas.common import Page, PaginationParams
-from app.services.comment_service import CommentService
-from app.services.ticket_service import TicketService
 
 router = APIRouter(tags=["Comments"])
 
 
-def _comments(db: DbSession) -> CommentService:
-    return CommentService(db)
-
-
-def _tickets(db: DbSession) -> TicketService:
-    return TicketService(db)
-
-
-CommentSvc = Annotated[CommentService, Depends(_comments)]
-TicketSvc = Annotated[TicketService, Depends(_tickets)]
 @router.get(
     "/tickets/{ticket_id}/comments",
     response_model=Page[CommentRead],

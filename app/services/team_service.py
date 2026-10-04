@@ -1,17 +1,16 @@
 import uuid
-from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.exceptions import BadRequest, ConflictError, TeamNotFound, UserNotFound
-from app.models.audit import AuditLog
 from app.models.enums import Permission, TeamRole, TicketOwnerRole, TicketStatus
 from app.models.team import Team, TeamMembership
 from app.models.ticket import Ticket
 from app.models.user import User
 from app.schemas.team import MemberAdd
+from app.services.audit import add_audit
 
 
 class TeamService:
@@ -65,9 +64,9 @@ class TeamService:
         )
         self.db.add(membership)
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
-            team_id=team.id,
+            entity_id=team.id,
             action="member_added",
             changes={
                 "user_id": str(user.id),
@@ -105,9 +104,9 @@ class TeamService:
         previous = membership.role_in_team
         membership.role_in_team = role
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
-            team_id=team.id,
+            entity_id=team.id,
             action="member_role_changed",
             changes={
                 "user_id": str(user_id),
@@ -147,9 +146,9 @@ class TeamService:
             or 0
         )
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
-            team_id=team.id,
+            entity_id=team.id,
             action="member_removed",
             changes={
                 "user_id": str(user_id),
@@ -163,23 +162,5 @@ class TeamService:
         await self.db.commit()
         return open_tickets
 
-    def _add_audit(
-        self,
-        *,
-        actor_id: uuid.UUID | None,
-        team_id: uuid.UUID,
-        action: str,
-        changes: dict[str, Any],
-        ip_address: str | None = None,
-    ) -> None:
-        self.db.add(
-            AuditLog(
-                actor_id=actor_id,
-                entity_type="team",
-                entity_id=team_id,
-                action=action,
-                changes=changes,
-                ip_address=ip_address,
-            )
-        )
+
         

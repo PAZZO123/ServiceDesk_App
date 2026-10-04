@@ -18,7 +18,7 @@ from app.core.exceptions import (
     TicketNotFound,
     UserNotFound,
 )
-from app.models.audit import AuditLog, Notification
+from app.models.audit import Notification
 from app.models.enums import (
     NotificationType,
     Permission,
@@ -39,6 +39,7 @@ from app.schemas.ticket import (
     TicketSortField,
     TicketUpdate,
 )
+from app.services.audit import add_audit
 
 ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.OPEN: {
@@ -318,7 +319,7 @@ class TicketService:
         if priority_reason is not None:
             changes["priority_reason"] = priority_reason
 
-        self._add_audit(
+        add_audit(
             actor_id=requester.id,
             entity_id=ticket.id,
             action="created",
@@ -378,7 +379,7 @@ class TicketService:
             if category.team_id != old_team_id:
                 await self._notify_team(ticket, category)
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
             entity_id=ticket.id,
             action="updated",
@@ -416,7 +417,7 @@ class TicketService:
         if new_status == TicketStatus.CLOSED and ticket.closed_at is None:
             ticket.closed_at = now
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
             entity_id=ticket.id,
             action="status_changed",
@@ -439,7 +440,7 @@ class TicketService:
 
         ticket.deleted_at = datetime.now(UTC)
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
             entity_id=ticket.id,
             action="deleted",
@@ -491,7 +492,7 @@ class TicketService:
         if assignee is not None:
             ticket.owners.append(TicketOwner(user=assignee, role=TicketOwnerRole.ASSIGNEE))
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
             entity_id=ticket.id,
             action="assigned" if assignee_id is not None else "unassigned",
@@ -546,7 +547,7 @@ class TicketService:
         if before == after:
             return ticket
         ticket.tags = tags
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
             entity_id=ticket.id,
             action="tags_changed",
@@ -560,26 +561,6 @@ class TicketService:
         await self.db.commit()
         return await self.require_by_id(ticket.id)
 
-    def _add_audit(
-        self,
-        *,
-        actor_id: uuid.UUID | None,
-        entity_id: uuid.UUID,
-        action: str,
-        changes: dict[str, Any],
-        ip_address: str | None = None,
-        entity_type: str = "ticket",
-    ) -> None:
-        self.db.add(
-            AuditLog(
-                actor_id=actor_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                action=action,
-                changes=changes,
-                ip_address=ip_address,
-            )
-        )
 
     async def _notify_team(self, ticket: Ticket, category: Category) -> None:
         member_ids = (

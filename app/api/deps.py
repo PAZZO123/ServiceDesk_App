@@ -24,7 +24,13 @@ from app.core.security import TokenType, decode_token
 from app.db.session import get_db
 from app.models.enums import Permission
 from app.models.user import User
+from app.services.attachment_service import AttachmentService
 from app.services.auth_service import AuthService
+from app.services.comment_service import CommentService
+from app.services.notification_service import NotificationService
+from app.services.role_service import RoleService
+from app.services.team_service import TeamService
+from app.services.ticket_service import TicketService
 from app.services.user_service import UserService
 
 # Database
@@ -40,8 +46,38 @@ async def get_auth_service(db: DbSession) -> AuthService:
     return AuthService(db)
 
 
+async def get_ticket_service(db: DbSession) -> TicketService:
+    return TicketService(db)
+
+
+async def get_comment_service(db: DbSession) -> CommentService:
+    return CommentService(db)
+
+
+async def get_attachment_service(db: DbSession) -> AttachmentService:
+    return AttachmentService(db)
+
+
+async def get_team_service(db: DbSession) -> TeamService:
+    return TeamService(db)
+
+
+async def get_role_service(db: DbSession) -> RoleService:
+    return RoleService(db)
+
+
+async def get_notification_service(db: DbSession) -> NotificationService:
+    return NotificationService(db)
+
+
 UserSvc = Annotated[UserService, Depends(get_user_service)]
 AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
+TicketSvc = Annotated[TicketService, Depends(get_ticket_service)]
+CommentSvc = Annotated[CommentService, Depends(get_comment_service)]
+AttachmentSvc = Annotated[AttachmentService, Depends(get_attachment_service)]
+TeamSvc = Annotated[TeamService, Depends(get_team_service)]
+RoleSvc = Annotated[RoleService, Depends(get_role_service)]
+NotificationSvc = Annotated[NotificationService, Depends(get_notification_service)]
 
 # Authentication
 oauth2_scheme = OAuth2PasswordBearer(

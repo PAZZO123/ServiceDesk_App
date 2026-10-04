@@ -6,8 +6,9 @@ from sqlalchemy import select
 
 from app.api.deps import DbSession, VerifiedUser
 from app.core.cache import CATALOG_TTL_SECONDS, CATEGORIES_KEY, TEAMS_KEY, get_or_load
+from app.models.tag import Tag
 from app.models.team import Category, Team
-from app.schemas.ticket import CategoryBrief, TeamBrief
+from app.schemas.ticket import CategoryBrief, TagBrief, TeamBrief
 
 router = APIRouter(tags=["Catalog"])
 
@@ -34,3 +35,7 @@ async def list_teams(db: DbSession, user: VerifiedUser) -> Any:
         return _teams.dump_python(_teams.validate_python(rows), mode="json")
 
     return await get_or_load(TEAMS_KEY, CATALOG_TTL_SECONDS, load)
+
+@router.get("/tags", response_model=list[TagBrief], summary="List tags")
+async def list_tags(db: DbSession, user:VerifiedUser)->Any:
+    return (await db.scalars(select(Tag).order_by(Tag.name))).all()

@@ -1,7 +1,6 @@
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,13 +10,14 @@ from app.core import storage
 from app.core.exceptions import CommentNotFound
 from app.core.permissions import TicketPermissions
 from app.models.attachment import Attachment
-from app.models.audit import AuditLog, Notification
+from app.models.audit import Notification
 from app.models.enums import NotificationType, TicketOwnerRole
 from app.models.ticket import Comment, Ticket
 from app.models.user import User
 from app.realtime.events import emit_ticket_event
 from app.schemas.comment import CommentCreate, CommentUpdate
 from app.schemas.common import PaginationParams
+from app.services.audit import add_audit
 
 PREVIEW_CHARS = 140
 
@@ -93,9 +93,9 @@ class CommentService:
         ):
             ticket.first_response_at = now
 
-        self._add_audit(
+        add_audit(
             actor_id=author.id,
-            ticket_id=ticket.id,
+            entity_id=ticket.id,
             action="commented",
             changes={
                 "comment_id": str(comment.id),
@@ -127,9 +127,9 @@ class CommentService:
         previous = comment.body
         comment.body = data.body
 
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
-            ticket_id=comment.ticket_id,
+            entity_id=comment.ticket_id,
             action="comment_edited",
             changes={
                 "comment_id": str(comment.id),
@@ -152,9 +152,9 @@ class CommentService:
         *,
         ip_address: str | None = None,
     ) -> None:
-        self._add_audit(
+        add_audit(
             actor_id=actor.id,
-            ticket_id=comment.ticket_id,
+            entity_id=comment.ticket_id,
             action="comment_deleted",
             changes={
                 "comment_id": str(comment.id),
@@ -216,23 +216,3 @@ class CommentService:
                     },
                 )
             )
-
-    def _add_audit(
-        self,
-        *,
-        actor_id: uuid.UUID | None,
-        ticket_id: uuid.UUID,
-        action: str,
-        changes: dict[str, Any],
-        ip_address: str | None = None,
-    ) -> None:
-        self.db.add(
-            AuditLog(
-                actor_id=actor_id,
-                entity_type="ticket",
-                entity_id=ticket_id,
-                action=action,
-                changes=changes,
-                ip_address=ip_address,
-            )
-        )
