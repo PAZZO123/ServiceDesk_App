@@ -1,14 +1,17 @@
 import argparse
 import asyncio
+import getpass
+import os
 
 from sqlalchemy import func, select
 
 from app.core.cache import CATEGORIES_KEY, TEAMS_KEY, invalidate, redis_client
+from app.core.security import hash_password
 from app.db.session import AsyncSessionLocal, engine
-from app.models.enums import SystemRole
+from app.models.enums import SystemRole, TeamRole
 from app.models.role import Role
 from app.models.tag import Tag
-from app.models.team import Category, Team
+from app.models.team import Category, Team, TeamMembership
 from app.models.user import User
 
 #The Data
@@ -64,6 +67,20 @@ TAGS: list[tuple[str, str]] = [
     ("waiting-vendor", "#6B7280"),
 ]
 
+# Demo accounts: one or more per role, so a demo never starts with sign ups.
+# (email, full name, role, team slug or None, role in team or None)
+DEMO_USERS: list[tuple[str, str, str, str | None, TeamRole | None]] = [
+    ("grace@example.com", "Grace Uwase", "admin", None, None),
+    ("eric@example.com", "Eric Mugisha", "observer", None, None),
+    ("amina@example.com", "Amina Kayitesi", "agent", "network", TeamRole.LEAD),
+    ("olivier@example.com", "Olivier Habimana", "agent", "network", TeamRole.MEMBER),
+    ("jean@example.com", "Jean Bosco Niyonzima", "agent", "hardware", TeamRole.LEAD),
+    ("diane@example.com", "Diane Ingabire", "agent", "software", TeamRole.LEAD),
+    ("kevin@example.com", "Kevin Mutabazi", "agent", "accounts", TeamRole.LEAD),
+    ("claire@example.com", "Claire Mukamana", "requester", None, None),
+    ("sandrine@example.com", "Sandrine Uwimana", "requester", None, None),
+]
+
 # Seeding
 async def seed_teams(db)->dict[str, Team]:
     result =await db.execute(select(Team))
@@ -117,6 +134,40 @@ async def seed_tags(db) -> None:
         created += 1
     await db.flush()
     print(f"tags      : {created} created, {len(TAGS) - created} already present.")
+    
+def demo_password() -> str:
+    password = os.environ.get("DEMO_PASSWORD") or getpass.getpass("Password for the demo accounts: ")
+    if len(password) < 8 or password.isdigit():
+        raise SystemExit("Demo password: at least 8 characters, not only numbers.")
+    return password
+
+
+async def seed_demo_users(db, teams: dict[str, Team], password: str) -> None:
+    roles = {role.name: role for role in (await db.scalars(select(Role))).all()}
+    existing = set((await db.scalars(select(func.lower(User.email)))).all())
+    hashed = await hash_password(password)  # one hash, shared: bcrypt is slow on purpose
+    created = 0
+    for email, full_name, role_name, team_slug, team_role in DEMO_USERS:
+        if email in existing:
+            continue
+        user = User(
+            email=email,
+            full_name=full_name,
+            hashed_password=hashed,
+            role=roles[role_name],
+            is_verified=True,  # demo accounts skip the email link
+        )
+        db.add(user)
+        await db.flush()  # gives user.id, needed by the membership below
+        if team_slug is not None and team_role is not None:
+            db.add(
+                TeamMembership(
+                    user_id=user.id, team_id=teams[team_slug].id, role_in_team=team_role
+                )
+            )
+        created += 1
+    await db.flush()
+    print(f"demo users: {created} created, {len(DEMO_USERS) - created} already present.")
 
 async def promote_user(db, email:str, role_name: str)-> None:
     user = await db.scalar(select(User).where(func.lower(User.email) == email.lower()))
@@ -132,13 +183,16 @@ async def promote_user(db, email:str, role_name: str)-> None:
     print(f" promote : {email} {previous} -> {role.name}")
 
 
-async def main( promote_email: str| None, promote_role: str|None)->None:
+async def main(promote_email: str | None, promote_role: str | None, demo: bool) -> None:
+    password = demo_password() if demo else None
     print("\n Seeding reference data....")
 
     async with AsyncSessionLocal() as db:
         teams = await seed_teams(db)
         await seed_categories(db, teams)
         await seed_tags(db)
+        if password is not None:
+            await seed_demo_users(db, teams, password)
         if promote_email and promote_role:
             await promote_user(db, promote_email, promote_role)
         await db.commit()
@@ -146,7 +200,6 @@ async def main( promote_email: str| None, promote_role: str|None)->None:
     await redis_client.aclose()
     await engine.dispose()
     print("Done. ")
-
 if __name__ == "__main__":
     parser =argparse.ArgumentParser(description="Seed ServiceDesk reference data.")
     parser.add_argument(
@@ -160,5 +213,10 @@ if __name__ == "__main__":
         default='admin',
         help="Role to grant (default: admin)."
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Also create the demo accounts (asks for their password).",
+    )
     args=parser.parse_args()
-    asyncio.run(main(args.promote, args.role))
+    asyncio.run(main(args.promote, args.role, args.demo))
