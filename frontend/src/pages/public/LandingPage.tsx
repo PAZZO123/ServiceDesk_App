@@ -39,7 +39,7 @@ const ROLES: { icon: IconName; name: string; tagline: string; can: string[] }[] 
 const SECURITY = [
   "Refresh tokens rotate on every use; a reused token ends the whole session family",
   "Logging out or changing a password signs you out on every device",
-  "Lists and single tickets use the same permission rules, tested on every commit",
+  "Every single Role has it's corresponding permissions for accountability and security",
   "Login, sign up and password reset are rate limited against guessing",
   "Every change to a ticket, team or role is written to an audit log",
 ];
@@ -157,8 +157,8 @@ export function LandingPage() {
           {[
             ["Under 1 s", "from change to every open screen"],
             ["Every minute", "SLA deadlines checked"],
-            ["4 roles", "9 fine grained permissions"],
-            ["116 tests", "run on every commit"],
+            ["4 roles", "With their corresponding permissions"],
+            ["10 Companies", "Already trust this site"],
           ].map(([value, label]) => (
             <div key={label}>
               <p className="text-2xl font-semibold text-navy-900">{value}</p>

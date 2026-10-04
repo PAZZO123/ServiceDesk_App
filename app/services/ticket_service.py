@@ -395,6 +395,9 @@ class TicketService:
             # §5 #3: the new team learns it has a ticket.
             if category.team_id != old_team_id:
                 await self._notify_team(ticket, category)
+                dropped = await self._drop_assignee_outside_team(ticket)
+                if dropped is not None:
+                    changes["assignee_id"] = {"from": str(dropped), "to": None}
 
         add_audit(
             self.db,
@@ -626,6 +629,21 @@ class TicketService:
                 )
             )
 
+    async def _drop_assignee_outside_team(self, ticket: Ticket) -> uuid.UUID | None:
+        assignee = ticket.assignee
+        if assignee is None or assignee.role.grants(Permission.TICKET_VIEW_ALL):
+            return None  
+        in_new_team = await self.db.scalar(
+            select(TeamMembership.user_id).where(
+                TeamMembership.user_id == assignee.id,
+                TeamMembership.team_id == ticket.team_id,
+            )
+        )
+        if in_new_team is not None:
+            return None
+        for owner in [o for o in ticket.owners if o.role == TicketOwnerRole.ASSIGNEE]:
+            ticket.owners.remove(owner)
+        return assignee.id
 
     async def _notify_team(self, ticket: Ticket, category: Category) -> set[uuid.UUID]:
         member_ids = (

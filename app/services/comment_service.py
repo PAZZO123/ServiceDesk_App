@@ -209,7 +209,7 @@ class CommentService:
     # Internals
     def _notify(
         self, ticket: Ticket, comment: Comment, author: User, skip: set[uuid.UUID]
-    ) -> None:
+    ) -> set[uuid.UUID]:
         requester_id = ticket.requester.id if ticket.requester else None
         assignee_id = ticket.assignee.id if ticket.assignee else None
 

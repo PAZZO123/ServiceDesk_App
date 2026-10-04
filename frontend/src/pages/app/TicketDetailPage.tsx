@@ -46,16 +46,21 @@ function useAbilities(ticket: TicketRead | undefined) {
   const staff = can(Perm.WORK);
   const isRequester = ticket.requester.id === me;
   const closed = ticket.status === "closed";
+  // The requester's own text: only while open or waiting.
+  const ownText = isRequester && REQUESTER_EDITABLE.includes(ticket.status);
+  // Nobody owns it, I own it, or I may take over (admin).
+  const free = !ticket.assignee || ticket.assignee.id === me || can(Perm.REASSIGN);
   return {
     me,
     staff,
     isRequester,
-    edit: staff || (isRequester && REQUESTER_EDITABLE.includes(ticket.status)),
+    edit: staff || ownText,
+    ownText,
     statusTargets: staff ? NEXT_STATUSES[ticket.status] : isRequester ? NEXT_STATUSES[ticket.status].filter((s) => s === "closed") : [],
     comment: staff || (isRequester && !closed),
     internal: staff,
-    claim: staff && !closed && ticket.assignee?.id !== me,
-    assign: staff,
+    claim: staff && !closed && ticket.assignee?.id !== me && free,
+    assign: staff && free,
     tags: staff,
     remove: can(Perm.DELETE),
     moderate: can(Perm.MODERATE),
@@ -176,7 +181,7 @@ function Header({ ticket, can }: { ticket: TicketRead; can: Can }) {
         </div>
       </div>
       <StatusDialog ticket={ticket} targets={can.statusTargets} open={statusOpen} onClose={() => setStatusOpen(false)} />
-      {editOpen && <EditDialog ticket={ticket} staff={can.staff} onClose={() => setEditOpen(false)} />}
+      {editOpen && <EditDialog ticket={ticket} staff={can.staff} ownText={can.ownText} onClose={() => setEditOpen(false)} />}
       <ConfirmDialog
         open={deleteOpen}
         title={`Delete ${ticket.reference}?`}
@@ -234,7 +239,9 @@ function StatusDialog({ ticket, targets, open, onClose }: { ticket: TicketRead; 
   );
 }
 
-function EditDialog({ ticket, staff, onClose }: { ticket: TicketRead; staff: boolean; onClose: () => void }) {
+// Staff change only category and priority; title and description are the
+// requester's own words (app/core/permissions.py STAFF_EDITABLE_FIELDS).
+function EditDialog({ ticket, staff, ownText, onClose }: { ticket: TicketRead; staff: boolean; ownText: boolean; onClose: () => void }) {
   const categories = useQuery({ queryKey: ["categories"], queryFn: listCategories, staleTime: 300_000, enabled: staff });
   const [title, setTitle] = useState(ticket.title);
   const [description, setDescription] = useState(ticket.description);
@@ -245,8 +252,8 @@ function EditDialog({ ticket, staff, onClose }: { ticket: TicketRead; staff: boo
     () => {
       // Send only what changed: requesters may not send staff-only fields.
       const data: Record<string, unknown> = {};
-      if (title.trim() !== ticket.title) data.title = title.trim();
-      if (description.trim() !== ticket.description) data.description = description.trim();
+      if (ownText && title.trim() !== ticket.title) data.title = title.trim();
+      if (ownText && description.trim() !== ticket.description) data.description = description.trim();
       if (staff && priority !== ticket.priority) data.priority = priority;
       if (staff && categoryId !== ticket.category.id) data.category_id = categoryId;
       return updateTicket(ticket.id, data);
@@ -275,8 +282,12 @@ function EditDialog({ ticket, staff, onClose }: { ticket: TicketRead; staff: boo
         }}
         className="space-y-4"
       >
-        <TextField label="Title" required minLength={5} maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
-        <TextArea label="Description" required minLength={10} rows={6} value={description} onChange={(e) => setDescription(e.target.value)} />
+        {ownText && (
+          <>
+            <TextField label="Title" required minLength={5} maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} />
+            <TextArea label="Description" required minLength={10} rows={6} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </>
+        )}
         {staff && (
           <div className="grid gap-4 sm:grid-cols-2">
             <SelectField label="Priority" value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)}>
@@ -284,7 +295,7 @@ function EditDialog({ ticket, staff, onClose }: { ticket: TicketRead; staff: boo
                 <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
               ))}
             </SelectField>
-            <SelectField label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} hint="Moving it changes the team and recomputes the SLA.">
+            <SelectField label="Category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} hint="Moving it hands the ticket to that team, recomputes the SLA and removes an assignee from the old team. Comments stay.">
               {categories.data?.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}

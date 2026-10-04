@@ -214,6 +214,7 @@ async def assign_ticket(
 ) -> Ticket:
     ticket = await svc.require_by_id(ticket_id)
     perms.require_assign(ticket)
+    perms.require_reassign(ticket)
     return await svc.assign(
         ticket,
         data.assignee_id,
@@ -235,6 +236,7 @@ async def claim_ticket(
 ) -> Ticket:
     ticket = await svc.require_by_id(ticket_id)
     perms.require_assign(ticket)
+    perms.require_reassign(ticket)
 
     return await svc.assign(
         ticket,

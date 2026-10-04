@@ -34,5 +34,5 @@ export const NOTIFICATION_LABEL: Record<NotificationType, string> = {
   comment_added: "New comment",
   sla_breached: "SLA breached",
   ticket_mentioned: "You were mentioned",
-    ticket_created: "New ticket",
+  ticket_created: "New ticket",
 };

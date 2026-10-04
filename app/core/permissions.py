@@ -18,6 +18,7 @@ REQUESTER_EDITABLE_FIELDS: frozenset[str] = frozenset(
     {"title", "description", "extra_data"}
 )
 REQUESTER_STATUS_TARGETS: frozenset[TicketStatus] = frozenset({TicketStatus.CLOSED})
+STAFF_EDITABLE_FIELDS: frozenset[str] = frozenset({"category_id", "priority"})
 
 
 async def load_team_ids(db: AsyncSession, user: User) -> frozenset[uuid.UUID]:
@@ -88,11 +89,17 @@ class TicketPermissions:
 
     def can_set_priority(self) -> bool:
         return self.is_staff
-
-    def editable_fields(self, ticket: Ticket) -> frozenset[str] | None:
+    def editable_fields(self, ticket: Ticket) -> frozenset[str]:
+        fields: set[str] = set()
+        
+        if (
+            ticket.has_owner(self.user.id, TicketOwnerRole.REQUESTER)
+            and ticket.status in REQUESTER_EDITABLE_STATES
+        ):
+            fields |= REQUESTER_EDITABLE_FIELDS
         if self.is_staff:
-            return None
-        return REQUESTER_EDITABLE_FIELDS
+            fields |= STAFF_EDITABLE_FIELDS
+        return frozenset(fields)
 
     def can_change_status(self, ticket: Ticket, new_status: TicketStatus) -> bool:
         if not self.can_view(ticket):
@@ -135,6 +142,13 @@ class TicketPermissions:
 
     def can_edit_comment(self, comment: Comment) -> bool:
         return comment.author_id == self.user.id
+    def can_reassign(self, ticket: Ticket) -> bool:
+            assignee = ticket.assignee
+            return (
+            assignee is None
+            or assignee.id == self.user.id
+            or self.has(Permission.TICKET_REASSIGN)
+        )
 
     def can_delete_comment(self, comment: Comment) -> bool:
         return comment.author_id == self.user.id or self.can_moderate_content
@@ -152,8 +166,6 @@ class TicketPermissions:
 
     def require_fields(self, ticket: Ticket, fields: set[str]) -> None:
         allowed = self.editable_fields(ticket)
-        if allowed is None:
-            return
         forbidden = fields - allowed
         if forbidden:
             raise PermissionDenied(
@@ -171,6 +183,15 @@ class TicketPermissions:
         self.require_view(ticket)
         if not self.can_assign(ticket):
             raise PermissionDenied("Only support staff can assign tickets.")
+        
+    def require_reassign(self, ticket: Ticket) -> None:
+        if not self.can_reassign(ticket):
+            name = ticket.assignee.full_name if ticket.assignee else "Another agent"
+            raise PermissionDenied(
+                f"{name} is already working on this ticket. "
+                "Only an administrator can reassign it."
+            )
+
 
     def require_delete(self, ticket: Ticket) -> None:
         self.require_view(ticket)

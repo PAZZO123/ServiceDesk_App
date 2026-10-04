@@ -13,6 +13,7 @@ export const Perm = {
   TEAM_MANAGE: "team.manage",
   USER_MANAGE: "user.manage",
   ROLE_MANAGE: "role.manage",
+  REASSIGN: "ticket.reassign",
 } as const;
 
 export type PermissionName = (typeof Perm)[keyof typeof Perm];

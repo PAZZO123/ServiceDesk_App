@@ -7,18 +7,17 @@ class SystemRole(StrEnum):
     OBSERVER = "observer"
     ADMIN = "admin"
 
-
 class Permission(StrEnum):
     TICKET_VIEW_ALL = "ticket.view_all"
     TICKET_WORK = "ticket.work"
     TICKET_DELETE = "ticket.delete"
+    TICKET_REASSIGN = "ticket.reassign"
     TICKET_STARTS_HIGH = "ticket.starts_high"
     COMMENT_READ_INTERNAL = "comment.read_internal"
     CONTENT_MODERATE = "content.moderate"
     TEAM_MANAGE = "team.manage"
     USER_MANAGE = "user.manage"
     ROLE_MANAGE = "role.manage"
-
 
 class TicketOwnerRole(StrEnum):
     REQUESTER = "requester"
