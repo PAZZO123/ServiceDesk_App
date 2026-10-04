@@ -53,6 +53,14 @@ export function DashboardPage() {
     ],
   });
 
+  // Running totals that only go up: closing a resolved ticket keeps it in
+  // "resolved" (resolved=true) AND adds it to "closed". The donut above is a
+  // snapshot instead: there a ticket sits in exactly one slice.
+  const outcomes = useQueries({
+    queries: [countQuery("resolved-ever", { resolved: true }), countQuery("closed", { status: "closed" })],
+  });
+  const [resolvedEver, closedCount] = outcomes.map((q) => q.data);
+
   const upcoming = useQuery({
     queryKey: ["tickets", "dashboard", staff ? "deadlines" : "mine"],
     queryFn: () =>
@@ -121,6 +129,18 @@ export function DashboardPage() {
                 slices={STATUSES.map((s, i) => ({ label: STATUS_LABEL[s], value: counts[i], color: STATUS_COLORS[s] }))}
               />
             )}
+          </div>
+          <div className="grid grid-cols-2 border-t border-slate-100">
+            <Link to="/app/tickets?resolved=true" className="border-r border-slate-100 px-5 py-4 transition hover:bg-slate-50" title="Includes tickets that were closed after being resolved">
+              <p className="text-xs text-slate-500">Resolved so far</p>
+              <p className="mt-1 text-xl font-semibold text-navy-900">{resolvedEver ?? "…"}</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">closed ones included</p>
+            </Link>
+            <Link to="/app/tickets?status=closed" className="px-5 py-4 transition hover:bg-slate-50">
+              <p className="text-xs text-slate-500">Closed</p>
+              <p className="mt-1 text-xl font-semibold text-navy-900">{closedCount ?? "…"}</p>
+              <p className="mt-0.5 text-[11px] text-slate-400">finished for good</p>
+            </Link>
           </div>
         </SectionCard>
 

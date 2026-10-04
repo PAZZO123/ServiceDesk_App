@@ -151,6 +151,13 @@ class TicketFilters(APISchema):
         description="True returns only tickets with no assignee.",
     )
     sla_breached: bool | None = Query(default=None)
+    resolved: bool | None = Query(
+        default=None,
+        description=(
+            "True: tickets that were resolved and are still resolved or closed "
+            "(a closed ticket still counts as resolved). False: all the others."
+        ),
+    )
 
     created_after: datetime | None = Query(default=None)
     created_before: datetime | None = Query(default=None)

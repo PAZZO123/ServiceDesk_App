@@ -167,6 +167,8 @@ export type TicketFilters = {
   requester_id?: string;
   unassigned?: boolean;
   sla_breached?: boolean;
+  // Resolved at some point and still resolved or closed (closing keeps it).
+  resolved?: boolean;
   created_after?: string;
   created_before?: string;
   q?: string;

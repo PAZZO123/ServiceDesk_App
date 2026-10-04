@@ -38,6 +38,7 @@ function readFilters(params: URLSearchParams): TicketFilters {
     requester_id: params.get("requester_id") || undefined,
     unassigned: bool("unassigned"),
     sla_breached: bool("sla_breached"),
+    resolved: bool("resolved"),
     created_after: params.get("created_after") || undefined,
     created_before: params.get("created_before") || undefined,
     q: params.get("q") || undefined,
@@ -77,16 +78,20 @@ export function TicketsPage() {
     setParams(next);
   }
 
+  // Each view clears the others first, so only one is active at a time.
+  const none = { assignee_id: undefined, requester_id: undefined, unassigned: undefined, sla_breached: undefined, resolved: undefined };
   const views = [
-    { label: "All", active: !filters.assignee_id && !filters.requester_id && !filters.unassigned && !filters.sla_breached, set: { assignee_id: undefined, requester_id: undefined, unassigned: undefined, sla_breached: undefined } },
+    { label: "All", active: !filters.assignee_id && !filters.requester_id && !filters.unassigned && !filters.sla_breached && !filters.resolved, set: none },
     ...(staff
       ? [
-          { label: "Assigned to me", active: filters.assignee_id === me, set: { assignee_id: me, requester_id: undefined, unassigned: undefined, sla_breached: undefined } },
-          { label: "Unassigned", active: filters.unassigned === true, set: { unassigned: "true", assignee_id: undefined, requester_id: undefined, sla_breached: undefined } },
+          { label: "Assigned to me", active: filters.assignee_id === me, set: { ...none, assignee_id: me } },
+          { label: "Unassigned", active: filters.unassigned === true, set: { ...none, unassigned: "true" } },
         ]
       : []),
-    { label: "Raised by me", active: filters.requester_id === me, set: { requester_id: me, assignee_id: undefined, unassigned: undefined, sla_breached: undefined } },
-    { label: "Breached", active: filters.sla_breached === true, set: { sla_breached: "true", assignee_id: undefined, requester_id: undefined, unassigned: undefined } },
+    { label: "Raised by me", active: filters.requester_id === me, set: { ...none, requester_id: me } },
+    { label: "Breached", active: filters.sla_breached === true, set: { ...none, sla_breached: "true" } },
+    // Closed tickets that were resolved first are included.
+    { label: "Resolved", active: filters.resolved === true, set: { ...none, resolved: "true" } },
   ];
 
   const activeFilterCount = [filters.status, filters.priority, filters.category_id, filters.team_id, filters.created_after, filters.created_before].filter(Boolean).length;

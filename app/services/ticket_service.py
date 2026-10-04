@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pydantic_core import to_jsonable_python
-from sqlalchemy import Select, func, select, text
+from sqlalchemy import Select, and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql.functions import Function
@@ -111,6 +111,17 @@ class TicketService:
 
         if filters.sla_breached is not None:
             conditions.append(Ticket.sla_breached == filters.sla_breached)
+
+        if filters.resolved is not None:
+            # resolved_at is stamped once, on the way to "resolved", and closing
+            # keeps it: so resolved-then-closed still counts. The status check
+            # leaves out a ticket that was reopened after it was resolved.
+            # Closed straight from open (never resolved) has no resolved_at.
+            was_resolved = and_(
+                Ticket.resolved_at.is_not(None),
+                Ticket.status.in_((TicketStatus.RESOLVED, TicketStatus.CLOSED)),
+            )
+            conditions.append(was_resolved if filters.resolved else ~was_resolved)
 
         if filters.unassigned:
             conditions.append(~Ticket.owners.any(role=TicketOwnerRole.ASSIGNEE))
@@ -467,7 +478,7 @@ class TicketService:
 
         add_audit(
             self.db,
-                        entity_type="ticket",
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="deleted",
@@ -521,7 +532,7 @@ class TicketService:
 
         add_audit(
             self.db,
-                        entity_type="ticket",
+            entity_type="ticket",
             actor_id=actor.id,
             entity_id=ticket.id,
             action="assigned" if assignee_id is not None else "unassigned",
@@ -548,8 +559,10 @@ class TicketService:
                     },
                 )
             )
-            if assignee is not None:
-                await notify_oversight(
+        # Admins and observers hear about EVERY assignment, a claim included,
+        # so this is NOT inside the "assignee.id != actor.id" block above.
+        if assignee is not None:
+            await notify_oversight(
                 self.db,
                 NotificationType.TICKET_ASSIGNED,
                 {
@@ -558,6 +571,7 @@ class TicketService:
                     "title": ticket.title,
                     "priority": ticket.priority.value,
                     "assigned_by": actor.full_name,
+                    # The assignee's name: for these readers it is not "assigned to YOU".
                     "assignee": assignee.full_name,
                 },
                 exclude={actor.id, assignee.id},
