@@ -40,6 +40,7 @@ from app.schemas.ticket import (
     TicketUpdate,
 )
 from app.services.audit import add_audit
+from app.services.oversight import notify_oversight, oversight_user_ids
 
 ALLOWED_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.OPEN: {
@@ -328,7 +329,21 @@ class TicketService:
             changes=changes,
             ip_address=ip_address,
         )
-        await self._notify_team(ticket, category)
+        team_ids=await self._notify_team(ticket, category)
+        await notify_oversight(
+            self.db,
+            NotificationType.TICKET_CREATED,
+            {
+                "ticket_id": str(ticket.id),
+                "reference": ticket.reference,
+                "title": ticket.title,
+                "priority": ticket.priority.value,
+                "category": category.name,
+                "created_by": requester.full_name,
+            },
+            # The team already got "new ticket for your team".
+            exclude=team_ids | {requester.id},
+        )
         await emit_ticket_event(self.db, ticket.id, "created")
         if commit:
             await self.db.commit()
@@ -430,7 +445,7 @@ class TicketService:
             changes={"status": {"from": current.value, "to": new_status.value}},
             ip_address=ip_address,
         )
-        self._notify_status_change(ticket, current, new_status, actor)
+        await self._notify_status_change(ticket, current, new_status, actor)
         await emit_ticket_event(self.db, ticket.id, "status_changed")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
@@ -530,6 +545,20 @@ class TicketService:
                     },
                 )
             )
+            if assignee is not None:
+                await notify_oversight(
+                self.db,
+                NotificationType.TICKET_ASSIGNED,
+                {
+                    "ticket_id": str(ticket.id),
+                    "reference": ticket.reference,
+                    "title": ticket.title,
+                    "priority": ticket.priority.value,
+                    "assigned_by": actor.full_name,
+                    "assignee": assignee.full_name,
+                },
+                exclude={actor.id, assignee.id},
+            )
         await emit_ticket_event(self.db, ticket.id, "assigned")
         await self.db.commit()
         return await self.require_by_id(ticket.id)
@@ -574,11 +603,12 @@ class TicketService:
         await self.db.commit()
         return await self.require_by_id(ticket.id)
     
-    def _notify_status_change(
+    async def _notify_status_change(
         self, ticket: Ticket, old: TicketStatus, new: TicketStatus, actor: User
     ) -> None:
         
         recipients = {owner.user_id for owner in ticket.owners}
+        recipients |= await oversight_user_ids(self.db)
         recipients.discard(actor.id)
         for user_id in recipients:
             self.db.add(
@@ -597,7 +627,7 @@ class TicketService:
             )
 
 
-    async def _notify_team(self, ticket: Ticket, category: Category) -> None:
+    async def _notify_team(self, ticket: Ticket, category: Category) -> set[uuid.UUID]:
         member_ids = (
             await self.db.execute(
                 select(TeamMembership.user_id).where(
@@ -620,4 +650,5 @@ class TicketService:
                     },
                 )
             )
+        return set(member_ids)
         # Staged, not committed - the caller's commit covers these too.

@@ -19,6 +19,7 @@ from app.realtime.events import emit_ticket_event
 from app.schemas.comment import CommentCreate, CommentUpdate
 from app.schemas.common import PaginationParams
 from app.services.audit import add_audit
+from app.services.oversight import notify_oversight
 
 PREVIEW_CHARS = 140
 MENTION = re.compile(r"(?<![\w.@])@([A-Za-z0-9][A-Za-z0-9._-]*)")
@@ -111,7 +112,22 @@ class CommentService:
 
         mentioned = await self._mentioned_users(ticket, comment, author)
         self._notify_mentions(ticket, comment, author, mentioned)
-        self._notify(ticket, comment, author, skip={u.id for u in mentioned})
+        mentioned_ids = {u.id for u in mentioned}
+        notified = self._notify(ticket, comment, author, skip=mentioned_ids)
+        await notify_oversight(
+            self.db,
+            NotificationType.COMMENT_ADDED,
+            {
+                "ticket_id": str(ticket.id),
+                "reference": ticket.reference,
+                "comment_id": str(comment.id),
+                "author": author.full_name,
+                "internal": comment.is_internal,
+                "preview": comment.body[:PREVIEW_CHARS],
+            },
+            exclude=notified | mentioned_ids | {author.id},
+            internal=comment.is_internal,
+        )
         await emit_ticket_event(
             self.db, ticket.id, "comment_added", internal=comment.is_internal
         )
@@ -229,6 +245,7 @@ class CommentService:
                     },
                 )
             )
+        return {user_id for user_id in recipients if user_id is not None}
             
     async def _mentioned_users(
         self, ticket: Ticket, comment: Comment, author: User

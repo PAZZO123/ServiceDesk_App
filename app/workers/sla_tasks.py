@@ -14,6 +14,7 @@ from app.models.team import TeamMembership
 from app.models.ticket import Ticket
 from app.realtime.events import emit_ticket_event
 from app.services.audit import add_audit
+from app.services.oversight import oversight_user_ids
 from app.workers.celery_app import celery_app
 from app.workers.db import worker_session
 
@@ -63,7 +64,8 @@ async def sweep_sla_breaches(db: AsyncSession, now: datetime | None = None) -> i
             changes={"sla_due_at": ticket.sla_due_at.isoformat()},
         )
 
-        for user_id in await _recipients(db, ticket):
+        recipients = set(await _recipients(db, ticket)) | await oversight_user_ids(db)
+        for user_id in recipients:
             db.add(
                 Notification(
                     user_id=user_id,

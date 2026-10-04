@@ -2,7 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link } from "react-router";
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from "../../api/endpoints";
-import type { NotificationItem, NotificationType } from "../../api/types";
+
 import { PageHeader } from "../../components/AppBits";
 import { Button } from "../../components/ui/Button";
 import { Alert, EmptyState, Skeleton } from "../../components/ui/Feedback";
@@ -11,7 +11,8 @@ import { Pagination } from "../../components/ui/Pagination";
 import { useToast } from "../../components/ui/toast-context";
 import { errorMessage } from "../../lib/errors";
 import { formatDate, timeAgo } from "../../lib/format";
-import { NOTIFICATION_LABEL } from "../../lib/labels";
+import { NOTIFICATION_LABEL, STATUS_LABEL } from "../../lib/labels";
+import type { NotificationItem, NotificationType, TicketStatus } from "../../api/types";
 
 const SIZE = 15;
 
@@ -21,6 +22,7 @@ const ICONS: Record<NotificationType, { icon: IconName; tone: string }> = {
   comment_added: { icon: "message", tone: "bg-leaf-100 text-leaf-700" },
   sla_breached: { icon: "alert", tone: "bg-red-50 text-red-600" },
   ticket_mentioned: { icon: "user", tone: "bg-indigo-50 text-indigo-600" },
+    ticket_created: { icon: "plus", tone: "bg-amber-50 text-amber-600" },
 };
 
 // The payload differs per type (see the services that create them); read
@@ -37,12 +39,34 @@ function describe(n: NotificationItem): { title: string; text: string; ticketId:
         text: str("preview"),
         ticketId,
       };
-    case "ticket_assigned":
+       case "ticket_assigned":
+      // With "assignee" in the payload it was sent to an admin or observer:
+      // someone else got the ticket, so never "assigned you".
+      if (str("assignee")) {
+        return { title: `${str("assigned_by")} assigned ${ref} to ${str("assignee")}`, text: str("title"), ticketId };
+      }
       return {
         title: str("assigned_by") ? `${str("assigned_by")} assigned you ${ref}` : `New ticket ${ref} for your team`,
         text: str("title"),
         ticketId,
       };
+    case "ticket_created":
+      return {
+        title: `${str("created_by") || "Someone"} raised ${ref}`,
+        text: [str("category"), str("title")].filter(Boolean).join(": "),
+        ticketId,
+      };
+    case "ticket_status_changed": {
+      // "in_progress" -> "In progress"; an unknown value is shown as it is.
+      const label = (key: string) => STATUS_LABEL[str(key) as TicketStatus] ?? str(key);
+      return {
+        title: `${str("changed_by") || "Someone"} moved ${ref} from ${label("from")} to ${label("to")}`,
+        text: str("title"),
+        ticketId,
+      };
+    }
+    case "ticket_mentioned":
+      return { title: `${str("author") || "Someone"} mentioned you on ${ref}`, text: str("preview"), ticketId };
     case "sla_breached":
       return { title: `${ref} passed its SLA deadline`, text: str("title"), ticketId };
     default:

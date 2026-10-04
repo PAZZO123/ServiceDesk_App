@@ -399,6 +399,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List tags */
+        get: operations["list_tags_api_v1_tags_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tickets/{ticket_id}/comments": {
         parameters: {
             query?: never;
@@ -986,7 +1003,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "ticket_assigned" | "ticket_status_changed" | "comment_added" | "sla_breached" | "ticket_mentioned";
+        NotificationType: "ticket_assigned" | "ticket_status_changed" | "comment_added" | "sla_breached" | "ticket_mentioned" | "ticket_created";
         /** Page[CommentRead] */
         Page_CommentRead_: {
             /** Items */
@@ -1279,6 +1296,15 @@ export interface components {
             extra_data?: {
                 [key: string]: unknown;
             };
+        };
+        /** TicketFeedPage */
+        TicketFeedPage: {
+            /** Items */
+            items: components["schemas"]["TicketListItem"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Has More */
+            has_more: boolean;
         };
         /** TicketListItem */
         TicketListItem: {
@@ -2119,10 +2145,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TicketFeedPage"];
                 };
+            };
+            /** @description Bad cursor, or a sort the feed cannot use */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -2489,6 +2520,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamBrief"][];
+                };
+            };
+        };
+    };
+    list_tags_api_v1_tags_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagBrief"][];
                 };
             };
         };

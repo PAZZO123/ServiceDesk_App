@@ -52,4 +52,5 @@ class NotificationType(StrEnum):
     COMMENT_ADDED = "comment_added"
     SLA_BREACHED = "sla_breached"
     TICKET_MENTIONED = "ticket_mentioned"
+    TICKET_CREATED = "ticket_created"
 
