@@ -16,6 +16,7 @@ import type {
   RegisterResponse,
   RoleRead,
   SortOrder,
+  TagBrief,
   TeamBrief,
   TeamRole,
   TeamSlaStats,
@@ -232,6 +233,16 @@ export function setTicketTags(id: string, tagIds: string[]): Promise<TicketRead>
   return api<TicketRead>(`/tickets/${id}/tags`, { method: "PUT", json: { tag_ids: tagIds } });
 }
 
+// Every tag, A to Z, including tags no ticket uses yet.
+export function listTags(): Promise<TagBrief[]> {
+  return api<TagBrief[]>("/tags");
+}
+
+// Staff only. The server lowercases the name and joins words with "-".
+export function createTag(name: string, color: string): Promise<TagBrief> {
+  return api<TagBrief>("/tags", { method: "POST", json: { name, color } });
+}
+
 export async function exportTicketsCsv(filters: TicketFilters): Promise<void> {
   const res = await apiRaw(`/exports/tickets.csv${query(filters)}`);
   await saveResponse(res, "tickets.csv");
@@ -351,6 +362,11 @@ export function listUsers(page: number, size: number): Promise<UserPage> {
 
 export function assignRole(userId: string, role: string): Promise<UserRead> {
   return api<UserRead>(`/users/${userId}/role`, { method: "PATCH", json: { role } });
+}
+
+// false = disabled: signed out everywhere at once, cannot sign in again.
+export function setUserActive(userId: string, isActive: boolean): Promise<UserRead> {
+  return api<UserRead>(`/users/${userId}/active`, { method: "PATCH", json: { is_active: isActive } });
 }
 
 export function listRoles(): Promise<RoleRead[]> {

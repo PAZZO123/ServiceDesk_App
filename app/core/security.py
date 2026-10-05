@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -128,14 +129,32 @@ def verify_email_verification_token(token: str) -> str | None:
         return None
 
 
-def create_password_reset_token(email: str) -> str:
-    return _reset_serializer.dumps(email)
+# A reset link must work ONCE. The token carries a fingerprint of the
+# password hash it was made for; setting a new password makes a new hash
+# (bcrypt adds a fresh salt), so every older link stops matching.
+def password_fingerprint(hashed_password: str) -> str:
+    return hashlib.sha256(hashed_password.encode("utf-8")).hexdigest()[:16]
 
 
-def verify_password_reset_token(token: str) -> str | None:
+def create_password_reset_token(email: str, hashed_password: str) -> str:
+    return _reset_serializer.dumps(
+        {"email": email, "pw": password_fingerprint(hashed_password)}
+    )
+
+
+def verify_password_reset_token(token: str) -> tuple[str, str] | None:
+    # Returns (email, fingerprint). The caller compares the fingerprint
+    # with the user's CURRENT hash - only the database knows that.
     try:
-        return _reset_serializer.loads(
+        data = _reset_serializer.loads(
             token, max_age=settings.RESET_TOKEN_EXPIRE_MINUTES * 60
         )
     except (BadSignature, SignatureExpired):
         return None
+    # Links made before this change hold a plain email string: refuse them.
+    if not isinstance(data, dict):
+        return None
+    email, fingerprint = data.get("email"), data.get("pw")
+    if not isinstance(email, str) or not isinstance(fingerprint, str):
+        return None
+    return email, fingerprint

@@ -1,7 +1,8 @@
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
-from fastapi.concurrency import run_in_threadpool  # put under "from fastapi import ..."
+from fastapi.concurrency import run_in_threadpool
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import AuthSvc, ClientInfo, UserSvc, VerifiedUser
@@ -10,6 +11,7 @@ from app.core.rate_limit import rate_limit
 from app.core.security import (
     create_email_verification_token,
     create_password_reset_token,
+    password_fingerprint,
     verify_email_verification_token,
     verify_password,
     verify_password_reset_token,
@@ -64,6 +66,7 @@ async def register(
 @router.post(
     "/verify-email",
     response_model=Message,
+    dependencies=[Depends(rate_limit("10/hour", "verify_email"))],
     summary="Confirm an email address",
 )
 async def verify_email(
@@ -130,6 +133,9 @@ async def login(
 @router.post(
     "/refresh",
     response_model=TokenPair,
+    # Generous on purpose (handover 5 #15): WebSocket/SSE reconnects refresh,
+    # and must never look like abuse. This only stops a flood.
+    dependencies=[Depends(rate_limit("60/minute", "refresh"))],
     summary="Rotate the refresh token",
     responses={401: {"description": "Invalid, expired, or reused token"}},
 )
@@ -207,7 +213,12 @@ async def request_password_reset(
     user = await users.get_by_email(data.email)
 
     if user is not None and user.is_active:
-        await run_in_threadpool(email_tasks.send_password_reset_email.delay, to=user.email, full_name=user.full_name, token=create_password_reset_token(user.email))
+        await run_in_threadpool(
+            email_tasks.send_password_reset_email.delay,
+            to=user.email,
+            full_name=user.full_name,
+            token=create_password_reset_token(user.email, user.hashed_password),
+        )
 
     return Message(
         message="If that address has an account, a reset link has been sent."
@@ -217,6 +228,7 @@ async def request_password_reset(
 @router.post(
     "/password-reset/confirm",
     response_model=Message,
+    dependencies=[Depends(rate_limit("10/hour", "password_reset_confirm"))],
     summary="Set a new password using an emailed token",
 )
 async def confirm_password_reset(
@@ -224,11 +236,18 @@ async def confirm_password_reset(
     users: UserSvc,
     auth: AuthSvc,
 ) -> Message:
-    email = verify_password_reset_token(data.token)
-    if email is None:
+    claims = verify_password_reset_token(data.token)
+    if claims is None:
         raise InvalidToken()
+    email, fingerprint = claims
 
-    user = await users.require_by_email(email)
+    user = await users.get_by_email(email)
+    # compare_digest: a constant-time compare, so the response time does not
+    # leak how many characters matched. Same 401 for "no user" and "used link".
+    if user is None or not secrets.compare_digest(
+        fingerprint, password_fingerprint(user.hashed_password)
+    ):
+        raise InvalidToken("This reset link has already been used or is no longer valid.")
 
     await users.set_password(user, data.new_password)
     await auth.revoke_all_for_user(user.id)
@@ -239,6 +258,8 @@ async def confirm_password_reset(
 @router.post(
     "/change-password",
     response_model=Message,
+    # A stolen access token must not become a way to guess the current password.
+    dependencies=[Depends(rate_limit("5/minute", "change_password"))],
     summary="Change your password while signed in",
 )
 async def change_password(

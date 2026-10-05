@@ -18,8 +18,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /var/lib/postgresql/data/pgdata
 
+    # 127.0.0.1 = only this computer can connect. Without it Docker opens the
+    # port on every network card, so anyone on the same Wi-Fi could log in.
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -40,8 +42,10 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
 
+    # Same reason as postgres. Redis has no password here, and it is the
+    # Celery queue: from the network anyone could queue jobs (send email).
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:

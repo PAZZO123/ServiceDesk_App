@@ -6,6 +6,7 @@ import {
   assignTicket,
   changeStatus,
   claimTicket,
+  createTag,
   deleteAttachment,
   deleteComment,
   deleteTicket,
@@ -16,7 +17,7 @@ import {
   listCategories,
   listComments,
   listMembers,
-  listTickets,
+  listTags,
   setTicketTags,
   updateTicket,
   uploadCommentAttachment,
@@ -46,6 +47,9 @@ function useAbilities(ticket: TicketRead | undefined) {
   const staff = can(Perm.WORK);
   const isRequester = ticket.requester.id === me;
   const closed = ticket.status === "closed";
+  // Resolved or closed: the record of the fix. Only a moderator (admin) deletes.
+  const finished = closed || ticket.status === "resolved";
+  const moderate = can(Perm.MODERATE);
   // The requester's own text: only while open or waiting.
   const ownText = isRequester && REQUESTER_EDITABLE.includes(ticket.status);
   // Nobody owns it, I own it, or I may take over (admin).
@@ -54,16 +58,20 @@ function useAbilities(ticket: TicketRead | undefined) {
     me,
     staff,
     isRequester,
+    closed,
     edit: staff || ownText,
     ownText,
     statusTargets: staff ? NEXT_STATUSES[ticket.status] : isRequester ? NEXT_STATUSES[ticket.status].filter((s) => s === "closed") : [],
-    comment: staff || (isRequester && !closed),
+    // Closed means closed for everyone: no replies, files or (re)assigning.
+    comment: !closed && (staff || isRequester),
     internal: staff,
     claim: staff && !closed && ticket.assignee?.id !== me && free,
-    assign: staff && free,
+    assign: staff && !closed && free,
     tags: staff,
     remove: can(Perm.DELETE),
-    moderate: can(Perm.MODERATE),
+    moderate,
+    // Comments and files: mirrors can_delete_comment / can_delete_attachment.
+    deleteContent: (authorId: string) => moderate || (authorId === me && !finished),
   };
 }
 
@@ -383,16 +391,18 @@ function CommentItem({ comment, files, can }: { comment: CommentRead; files: Att
             {timeAgo(comment.created_at)}
             {comment.edited && " · edited"}
           </span>
-          {(mine || can.moderate) && !editing && (
+          {((mine && !can.closed) || can.deleteContent(comment.author.id)) && !editing && (
             <span className="ml-auto flex gap-1">
-              {mine && (
+              {mine && !can.closed && (
                 <button type="button" onClick={() => setEditing(true)} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-navy-900" aria-label="Edit comment">
                   <Icon name="edit" className="size-4" />
                 </button>
               )}
-              <button type="button" onClick={() => setConfirm(true)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Delete comment">
-                <Icon name="trash" className="size-4" />
-              </button>
+              {can.deleteContent(comment.author.id) && (
+                <button type="button" onClick={() => setConfirm(true)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Delete comment">
+                  <Icon name="trash" className="size-4" />
+                </button>
+              )}
             </span>
           )}
         </div>
@@ -617,14 +627,37 @@ function AssignDialog({ ticket, me, onClose }: { ticket: TicketRead; me: string;
   );
 }
 
-// There is no GET /tags endpoint, so the known tags are collected from the
-// tickets this user can see (see the report: a /tags endpoint is proposed).
+// The same palette the seeded tags use.
+const TAG_COLORS = ["#DC2626", "#EA580C", "#CA8A04", "#16A34A", "#0891B2", "#2563EB", "#9333EA", "#6B7280"];
+
+// The list comes from GET /tags. The old version collected tags from the
+// tickets you can see, so tags that no ticket used yet never appeared and
+// the dialog said "No tags exist yet" even with 8 tags in the database.
 function TagsDialog({ ticket, onClose }: { ticket: TicketRead; onClose: () => void }) {
-  const pool = useQuery({ queryKey: ["tickets", "tag-pool"], queryFn: () => listTickets({ size: 100, sort: "updated_at" }) });
-  const known = new Map<string, TagBrief>();
-  for (const t of [...(pool.data?.items ?? []), ticket]) for (const tag of t.tags ?? []) known.set(tag.id, tag);
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const tags = useQuery({ queryKey: ["tags"], queryFn: listTags });
   const [chosen, setChosen] = useState<Set<string>>(new Set((ticket.tags ?? []).map((t) => t.id)));
   const mutation = useTicketMutation(ticket.id, () => setTicketTags(ticket.id, [...chosen]), "Tags updated.");
+
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState(TAG_COLORS[0]);
+  const create = useMutation({
+    mutationFn: () => createTag(newName, newColor),
+    onSuccess: (tag: TagBrief) => {
+      void queryClient.invalidateQueries({ queryKey: ["tags"] });
+      // A tag you just made is almost always one you want on this ticket.
+      setChosen((prev) => new Set(prev).add(tag.id));
+      setNewName("");
+      toast(`Tag "${tag.name}" created. Press Save tags to keep it on this ticket.`);
+    },
+    onError: (err) => toast(errorMessage(err), "error"),
+  });
+  const onCreate = (e: FormEvent) => {
+    e.preventDefault();
+    if (newName.trim().length >= 2) create.mutate();
+  };
+  const known = tags.data ?? [];
 
   return (
     <Modal
@@ -639,11 +672,15 @@ function TagsDialog({ ticket, onClose }: { ticket: TicketRead; onClose: () => vo
         </>
       }
     >
-      {known.size === 0 ? (
-        <Alert tone="info">No tags exist yet. Tags are created by an administrator in the database for now.</Alert>
+      {tags.isPending ? (
+        <p className="text-sm text-slate-500">Loading tags...</p>
+      ) : tags.isError ? (
+        <Alert>{errorMessage(tags.error)}</Alert>
+      ) : known.length === 0 ? (
+        <Alert tone="info">No tags exist yet. Create the first one below.</Alert>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {[...known.values()].map((tag) => {
+          {known.map((tag) => {
             const on = chosen.has(tag.id);
             return (
               <button
@@ -665,6 +702,31 @@ function TagsDialog({ ticket, onClose }: { ticket: TicketRead; onClose: () => vo
           })}
         </div>
       )}
+      <form onSubmit={onCreate} className="mt-5 space-y-3 border-t border-slate-100 pt-4">
+        <TextField
+          label="New tag"
+          hint="For example: printer outage (saved as printer-outage)"
+          value={newName}
+          maxLength={50}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {TAG_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setNewColor(c)}
+              aria-label={`Colour ${c}`}
+              aria-pressed={newColor === c}
+              className={`size-6 rounded-full ring-offset-2 transition ${newColor === c ? "ring-2 ring-navy-900" : "hover:ring-2 hover:ring-slate-300"}`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+          <Button type="submit" size="sm" variant="secondary" icon="plus" loading={create.isPending} disabled={newName.trim().length < 2} className="ml-auto">
+            Create tag
+          </Button>
+        </div>
+      </form>
     </Modal>
   );
 }
@@ -733,7 +795,7 @@ function Attachments({ ticket, can }: { ticket: TicketRead; can: Can }) {
                 {f.size_human} · {f.uploader.full_name} · {f.comment_id ? "on a comment" : "on the ticket"}
               </span>
             </button>
-            {(f.uploader.id === can.me || can.moderate) && (
+            {can.deleteContent(f.uploader.id) && (
               <button type="button" onClick={() => setToDelete(f)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${f.original_filename}`}>
                 <Icon name="trash" className="size-4" />
               </button>

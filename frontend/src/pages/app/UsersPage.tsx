@@ -1,10 +1,11 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { assignRole, listRoles, listUsers } from "../../api/endpoints";
+import { assignRole, listRoles, listUsers, setUserActive } from "../../api/endpoints";
 import type { UserRead } from "../../api/types";
-import { useAuth } from "../../auth/auth-context";
+import { Perm, useAuth } from "../../auth/auth-context";
 import { PageHeader } from "../../components/AppBits";
 import { Avatar } from "../../components/ui/Badges";
+import { Button } from "../../components/ui/Button";
 import { Alert, Skeleton } from "../../components/ui/Feedback";
 import { Icon } from "../../components/ui/Icon";
 import { ConfirmDialog } from "../../components/ui/Modal";
@@ -39,6 +40,26 @@ export function UsersPage() {
     },
   });
 
+  // Disable / enable. Mirrors RoleService.set_active: never yourself, and
+  // only someone whose role has no power you lack (ticket.starts_high is a
+  // setting, not a power). The server checks again; this hides dead buttons.
+  const [toggling, setToggling] = useState<UserRead | null>(null);
+  const myPerms = new Set<string>(me?.role.permissions ?? []);
+  const mayToggle = (u: UserRead) =>
+    u.id !== me?.id && u.role.permissions.every((p) => myPerms.has(p) || p === Perm.STARTS_HIGH);
+  const access = useMutation({
+    mutationFn: (u: UserRead) => setUserActive(u.id, !u.is_active),
+    onSuccess: (u) => {
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast(u.is_active ? `${u.full_name} can sign in again.` : `${u.full_name} is disabled and signed out everywhere.`);
+      setToggling(null);
+    },
+    onError: (err) => {
+      toast(errorMessage(err), "error");
+      setToggling(null);
+    },
+  });
+
   const shown = (users.data?.items ?? []).filter((u) => {
     const q = filter.trim().toLowerCase();
     return !q || u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
@@ -57,20 +78,21 @@ export function UsersPage() {
           <p className="text-sm text-slate-500">{users.data ? `${users.data.total} people` : ""}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px]">
+          <table className="w-full min-w-[840px]">
             <thead className="bg-slate-50/80">
               <tr>
                 <th className="table-head">Person</th>
                 <th className="table-head">Status</th>
                 <th className="table-head">Joined</th>
                 <th className="table-head">Role</th>
+                <th className="table-head">Access</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.isPending &&
                 [1, 2, 3].map((n) => (
                   <tr key={n}>
-                    <td colSpan={4} className="p-4">
+                    <td colSpan={5} className="p-4">
                       <Skeleton className="h-10 w-full" />
                     </td>
                   </tr>
@@ -112,6 +134,25 @@ export function UsersPage() {
                       ))}
                     </select>
                   </td>
+                  <td className="table-cell">
+                    <Button
+                      size="sm"
+                      variant={u.is_active ? "ghost" : "secondary"}
+                      icon={u.is_active ? "lock" : "check"}
+                      className={u.is_active ? "text-red-600 hover:bg-red-50" : ""}
+                      disabled={!mayToggle(u) || access.isPending}
+                      title={
+                        u.id === me?.id
+                          ? "Nobody can disable their own account"
+                          : mayToggle(u)
+                            ? undefined
+                            : "This user has permissions you do not have"
+                      }
+                      onClick={() => setToggling(u)}
+                    >
+                      {u.is_active ? "Disable" : "Enable"}
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -135,6 +176,28 @@ export function UsersPage() {
         loading={change.isPending}
         onConfirm={() => pending && change.mutate(pending)}
         onClose={() => setPending(null)}
+      />
+      <ConfirmDialog
+        open={toggling !== null}
+        danger={toggling?.is_active ?? true}
+        title={toggling?.is_active ? "Disable this account?" : "Enable this account?"}
+        text={
+          toggling &&
+          (toggling.is_active ? (
+            <>
+              <b className="text-navy-900">{toggling.full_name}</b> is signed out on every device at once and cannot sign in until an
+              administrator enables the account again. Their tickets and comments stay.
+            </>
+          ) : (
+            <>
+              <b className="text-navy-900">{toggling.full_name}</b> can sign in again with their password. Old sessions stay ended.
+            </>
+          ))
+        }
+        confirmLabel={toggling?.is_active ? "Disable account" : "Enable account"}
+        loading={access.isPending}
+        onConfirm={() => toggling && access.mutate(toggling)}
+        onClose={() => setToggling(null)}
       />
       <p className="mt-4 flex items-center justify-center gap-2 text-xs text-slate-400">
         <Icon name="info" className="size-3.5" /> You cannot change your own role. Ask another administrator.

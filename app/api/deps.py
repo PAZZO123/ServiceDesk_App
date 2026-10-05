@@ -181,12 +181,12 @@ def _valid_ip(value: str | None) -> str | None:
 
 
 async def get_client_info(request: Request) -> dict[str, str | None]:
-    ip: str | None
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
-    else:
-        ip = request.client.host if request.client else None
+    # NOT the X-Forwarded-For header: any client can send it with any value,
+    # so the audit log would record a fake IP. Behind a real proxy, start
+    # uvicorn with --proxy-headers --forwarded-allow-ips=<proxy ip>: uvicorn
+    # then trusts the header ONLY from that proxy and puts the real address
+    # here - for the audit log and the rate limiter alike.
+    ip = request.client.host if request.client else None
 
     return {
         "user_agent": request.headers.get("user-agent"),

@@ -167,6 +167,11 @@ class RoleAlreadyExists(ConflictError):
     message = "A role with this name already exists."
 
 
+class TagAlreadyExists(ConflictError):
+    code = "tag_already_exists"
+    message = "A tag with this name already exists."
+
+
 class RoleInUse(ConflictError):
     code = "role_in_use"
     message = "This role cannot be removed."

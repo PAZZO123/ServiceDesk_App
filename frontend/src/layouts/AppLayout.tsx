@@ -6,6 +6,7 @@ import { Avatar } from "../components/ui/Badges";
 import { ButtonLink } from "../components/ui/Button";
 import { Icon, type IconName } from "../components/ui/Icon";
 import { Logo } from "../components/ui/Logo";
+import { ConfirmDialog } from "../components/ui/Modal";
 import { useToast } from "../components/ui/toast-context";
 import { humanize } from "../lib/format";
 import { useLiveUpdates, type LiveStatus } from "../realtime/useLiveUpdates";
@@ -55,6 +56,10 @@ export function AppLayout() {
   const live = useLiveUpdates();
   const unread = useUnreadCount();
   const [drawer, setDrawer] = useState(false);
+  // Sign out is one click from the sidebar and ends EVERY session (the
+  // backend revokes all refresh tokens), so it asks first.
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   if (!user) return null;
 
   const sections = NAV.map((s) => ({
@@ -118,7 +123,10 @@ export function AppLayout() {
           </div>
           <button
             type="button"
-            onClick={() => void logout()}
+            onClick={() => {
+              setDrawer(false);
+              setConfirmSignOut(true);
+            }}
             className="rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white"
             title="Sign out"
             aria-label="Sign out"
@@ -177,6 +185,26 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Rendered once here, not inside {sidebar}, which is drawn twice. */}
+      <ConfirmDialog
+        open={confirmSignOut}
+        danger={false}
+        title="Sign out?"
+        text="You will be signed out on every device where you are signed in."
+        confirmLabel="Sign out"
+        loading={signingOut}
+        onConfirm={async () => {
+          setSigningOut(true);
+          try {
+            await logout();
+          } finally {
+            setSigningOut(false);
+            setConfirmSignOut(false);
+          }
+        }}
+        onClose={() => setConfirmSignOut(false)}
+      />
     </div>
   );
 }

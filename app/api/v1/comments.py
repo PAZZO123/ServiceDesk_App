@@ -89,8 +89,10 @@ async def edit_comment(
     if not perms.can_view(ticket) or not perms.can_see_comment(comment):
         raise CommentNotFound()
 
-    if not perms.can_edit_comment(comment):
-        raise PermissionDenied("You can only edit your own comments.")
+    if not perms.can_edit_comment(comment, ticket):
+        raise PermissionDenied(
+            "You can only edit your own comments, and not on a closed ticket."
+        )
 
     return await comments.update(
         comment, data, actor=perms.user, ip_address=client["ip_address"]
@@ -114,7 +116,10 @@ async def delete_comment(
 
     if not perms.can_view(ticket) or not perms.can_see_comment(comment):
         raise CommentNotFound()
-    if not perms.can_delete_comment(comment):
-        raise PermissionDenied("You cannot delete this comment.")
+    if not perms.can_delete_comment(comment, ticket):
+        raise PermissionDenied(
+            "You cannot delete this comment. On a resolved or closed ticket "
+            "only an administrator can."
+        )
 
     await comments.delete(comment, actor=perms.user, ip_address=client["ip_address"])

@@ -1,6 +1,7 @@
 import uuid
+from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -11,6 +12,7 @@ from app.core.exceptions import (
     RoleNotFound,
     UserNotFound,
 )
+from app.models.audit import RefreshToken
 from app.models.enums import Permission
 from app.models.role import PermissionRecord, Role
 from app.models.user import User
@@ -202,6 +204,12 @@ class RoleService:
         if user.role_id == role.id:
             return user
 
+        # The ladder rule again. Without it, user.manage alone could hand out
+        # "admin" (to a second account you own) or demote an admin who has
+        # powers you lack. The new role gives its permissions; the old role
+        # takes its permissions away: you must hold both sets yourself.
+        self._check_actor_may_change(actor, set(role.permissions) | set(user.role.permissions))
+
         previous = user.role.name
         user.role = role
 
@@ -215,5 +223,57 @@ class RoleService:
             ip_address=ip_address,
         )
 
+        await self.db.commit()
+        return user
+
+    # ---- disabling accounts ----------------------------------------------
+
+    async def set_active(
+        self,
+        user_id: uuid.UUID,
+        is_active: bool,
+        actor: User,
+        *,
+        ip_address: str | None = None,
+    ) -> User:
+        # Disabling yourself would lock you out with nobody to undo it.
+        if user_id == actor.id:
+            raise PermissionDenied("You cannot disable or enable your own account.")
+
+        user = await self.db.get(User, user_id)
+        if user is None:
+            raise UserNotFound()
+
+        # Same ladder rule as assign_role: switching off an account takes
+        # away every power its role has, so you must hold them all yourself.
+        # A user manager cannot disable an admin who has more powers.
+        self._check_actor_may_change(actor, set(user.role.permissions))
+
+        if user.is_active == is_active:
+            return user
+
+        user.is_active = is_active
+        if not is_active:
+            # Sign the user out everywhere, in the SAME transaction.
+            # Access tokens: refused because of sessions_valid_from (and
+            # is_active). Refresh tokens: revoked, so they do not come back
+            # to life if the account is enabled again later.
+            now = datetime.now(UTC)
+            user.sessions_valid_from = now
+            await self.db.execute(
+                update(RefreshToken)
+                .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
+                .values(revoked_at=now)
+            )
+
+        add_audit(
+            self.db,
+            actor_id=actor.id,
+            entity_type="user",
+            entity_id=user.id,
+            action="account_enabled" if is_active else "account_disabled",
+            changes={"is_active": {"from": not is_active, "to": is_active}},
+            ip_address=ip_address,
+        )
         await self.db.commit()
         return user

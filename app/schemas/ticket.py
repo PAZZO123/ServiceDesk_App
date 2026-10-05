@@ -64,7 +64,29 @@ class TagBrief(APISchema):
     id: uuid.UUID
     name: str
     color: str
-    
+
+
+class TagCreate(APISchema):
+    # One spelling per tag: "Printer Outage" and "printer-outage" must not
+    # become two tags, so the name is normalised BEFORE the pattern check.
+    name: str = Field(
+        min_length=2,
+        max_length=50,
+        pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$",
+        examples=["printer-outage"],
+        description="Lowercase words joined by '-'. Spaces become '-'.",
+    )
+    # Same rule as the database CHECK constraint valid_hex_color: a bad
+    # colour is a 422 here, not a 500 from PostgreSQL.
+    color: str = Field(default="#6B7280", pattern=r"^#[0-9A-Fa-f]{6}$", examples=["#DC2626"])
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def normalise_name(cls, v: object) -> object:
+        if isinstance(v, str):
+            return "-".join(v.strip().lower().split())
+        return v
+
 class StatusChange(APISchema):
     status: TicketStatus
     comment:str|None=Field(

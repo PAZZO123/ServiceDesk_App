@@ -9,6 +9,7 @@ import { Button } from "../../components/ui/Button";
 import { Alert } from "../../components/ui/Feedback";
 import { SelectField, TextArea, TextField, Toggle } from "../../components/ui/Field";
 import { Icon } from "../../components/ui/Icon";
+import { ConfirmDialog } from "../../components/ui/Modal";
 import { useToast } from "../../components/ui/toast-context";
 import { errorMessage } from "../../lib/errors";
 import { formatDay, humanize } from "../../lib/format";
@@ -163,6 +164,8 @@ function PasswordCard() {
 function AccessCard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   return (
     <SectionCard title="Your access">
       <div className="space-y-5 p-6">
@@ -186,19 +189,31 @@ function AccessCard() {
           </div>
         )}
         <div className="border-t border-slate-100 pt-5">
-          <Button
-            variant="secondary"
-            icon="logout"
-            onClick={async () => {
-              await logout();
-              navigate("/login");
-            }}
-          >
+          <Button variant="secondary" icon="logout" onClick={() => setConfirmSignOut(true)}>
             Sign out everywhere
           </Button>
           <p className="mt-2 text-xs text-slate-500">Signing out ends your session on all devices.</p>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmSignOut}
+        danger={false}
+        title="Sign out everywhere?"
+        text="Your session ends on this computer and on every other device. You will need your password to sign in again."
+        confirmLabel="Sign out everywhere"
+        loading={signingOut}
+        onConfirm={async () => {
+          setSigningOut(true);
+          try {
+            await logout();
+            navigate("/login");
+          } finally {
+            setSigningOut(false);
+            setConfirmSignOut(false);
+          }
+        }}
+        onClose={() => setConfirmSignOut(false)}
+      />
     </SectionCard>
   );
 }

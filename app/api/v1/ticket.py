@@ -178,6 +178,7 @@ async def change_status(
      original_status = ticket.status
 
      if data.comment:
+            perms.require_comment(ticket)
             await comments.create(
                 ticket,
                 CommentCreate(body=data.comment, is_internal=False),
@@ -259,7 +260,7 @@ async def set_tags(
     client: ClientInfo,
 ) -> Ticket:
     ticket = await svc.require_by_id(ticket_id)
-    perms.require_assign(ticket)
+    perms.require_tag(ticket)  # not require_assign: tags stay editable when closed
 
     return await svc.set_tags(
         ticket,

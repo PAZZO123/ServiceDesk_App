@@ -86,8 +86,10 @@ async def upload_to_comment(
     if ticket is None or not perms.can_view(ticket) or not perms.can_see_comment(comment):
         raise AttachmentNotFound()
 
-    if not perms.can_edit_comment(comment):
-        raise PermissionDenied("You can only attach files to your own comments.")
+    if not perms.can_edit_comment(comment, ticket):
+        raise PermissionDenied(
+            "You can only attach files to your own comments, and not on a closed ticket."
+        )
 
     return await attachments.upload(
         file,
@@ -174,8 +176,11 @@ async def delete_attachment(
 )->None:
     attachment= await attachments.require_by_id(attachment_id)
     ticket= await _ticket_for_attachment(attachment, tickets, comments, perms)
-    if attachment.uploaded_by !=perms.user.id and not perms.can_moderate_content:
-        raise PermissionDenied("You can only delete files you uploaded")
+    if not perms.can_delete_attachment(attachment, ticket):
+        raise PermissionDenied(
+            "You can only delete files you uploaded, and not once the ticket "
+            "is resolved or closed (only an administrator can then)."
+        )
     
     await attachments.delete(
         attachment, actor=perms.user,ticket=ticket, ip_address=client["ip_address"]

@@ -77,7 +77,8 @@ async def test_feed_refuses_a_sort_it_cannot_honour(client: AsyncClient, make_us
 
 async def test_tags_lists_every_tag_a_to_z(client: AsyncClient, make_user: MakeUser) -> None:
     # GET /tags: the full list, even tags that no ticket uses yet.
-    # There is no API to create tags, so the test inserts them directly.
+    # Inserted directly (POST /tags exists since 2026-10-05, tested in
+    # test_tags_and_deletes.py); this test is only about the listing.
     async with AsyncSessionLocal() as db:
         db.add_all([Tag(name="vpn", color="#2563EB"), Tag(name="hardware")])
         await db.commit()

@@ -42,10 +42,11 @@ class Settings(BaseSettings):
     DB_POOL_RECYCLE: int = 1800
     DB_ECHO: bool = False
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
-    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+    # Redis. 127.0.0.1, not localhost: docker-compose publishes on IPv4 only,
+    # and on Windows "localhost" tries IPv6 first -> 0.5 s connect timeout.
+    REDIS_URL: str = "redis://127.0.0.1:6379/0"
+    CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/2"
 
     # Email
     SMTP_HOST: str = "smtp.gmail.com"

@@ -18,7 +18,7 @@ from app.schemas.role import (
     RolePermissionsUpdate,
     RoleRead,
 )
-from app.schemas.user import UserRead
+from app.schemas.user import UserActiveUpdate, UserRead
 
 router = APIRouter(tags=["Users & Roles"])
 
@@ -121,4 +121,25 @@ async def assign_role(
 ):
     return await svc.assign_role(
         user_id, data.role, actor=manager, ip_address=client["ip_address"]
+    )
+
+
+@router.patch(
+    "/users/{user_id}/active",
+    response_model=UserRead,
+    summary="Disable or enable an account",
+    responses={
+        403: {"description": "Your own account, or a user with powers you do not have"},
+        404: {"description": "No such user"},
+    },
+)
+async def set_user_active(
+    user_id: uuid.UUID,
+    data: UserActiveUpdate,
+    svc: RoleSvc,
+    manager: RequireUserManager,
+    client: ClientInfo,
+):
+    return await svc.set_active(
+        user_id, data.is_active, actor=manager, ip_address=client["ip_address"]
     )

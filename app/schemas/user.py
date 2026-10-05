@@ -33,6 +33,10 @@ class UserUpdate(APISchema):
     full_name: str | None = Field(default=None, min_length=2, max_length=120)
 
 
+class UserActiveUpdate(APISchema):
+    is_active: bool = Field(description="false disables the account and signs it out everywhere.")
+
+
 class UserProfileUpdate(APISchema):
     timezone: str | None = Field(default=None, max_length=64)
     notify_email: bool | None = None
