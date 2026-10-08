@@ -2,8 +2,9 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -50,6 +51,15 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
     CELERY_BROKER_URL: str = "redis://127.0.0.1:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://127.0.0.1:6379/2"
+    # Render: ONE server URL, no database number. The three URLs above are
+    # built from it: cache = base, Celery queue = base + 1, results = base + 2.
+    # ServiceDesk shares another app's Key Value there; its own numbers
+    # (10, 11, 12) keep the two apps' keys apart.
+    # Why not set CELERY_BROKER_URL on Render directly: Celery reads that
+    # environment variable ITSELF and it beats the URL we pass in, so the
+    # database number added here would be ignored (it would use database 0).
+    KEYVALUE_URL: str = ""
+    KEYVALUE_DB_BASE: int = Field(default=10, ge=0, le=13)
 
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
@@ -89,6 +99,20 @@ class Settings(BaseSettings):
             if v.startswith(prefix):
                 return "postgresql+asyncpg://" + v[len(prefix):]
         return v
+
+    @model_validator(mode="after")
+    def build_redis_urls_from_keyvalue_url(self) -> "Settings":
+        if not self.KEYVALUE_URL:
+            return self  # local .env: REDIS_URL /0, broker /1, backend /2 as written
+
+        def with_db(offset: int) -> str:
+            parsed = urlsplit(self.KEYVALUE_URL)
+            return urlunsplit(parsed._replace(path=f"/{self.KEYVALUE_DB_BASE + offset}"))
+
+        self.REDIS_URL = with_db(0)
+        self.CELERY_BROKER_URL = with_db(1)
+        self.CELERY_RESULT_BACKEND = with_db(2)
+        return self
 
     # validator run when settings are loaded
     @field_validator("SECRET_KEY")

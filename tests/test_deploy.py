@@ -36,6 +36,54 @@ def test_only_database_url_and_secret_are_required(monkeypatch: pytest.MonkeyPat
     Settings(_env_file=None, DATABASE_URL="postgresql://u:p@h/d", SECRET_KEY=SECRET)  # type: ignore[call-arg]
 
 
+def test_shared_keyvalue_gets_our_own_database_numbers() -> None:
+    # Render's connection string has no database number (shared bizpilot-redis).
+    s = Settings(  # type: ignore[call-arg]
+        _env_file=None, DATABASE_URL="postgresql://u:p@h/d", SECRET_KEY=SECRET,
+        KEYVALUE_URL="redis://red-abc123:6379", KEYVALUE_DB_BASE=10,
+    )
+    assert (s.REDIS_URL, s.CELERY_BROKER_URL, s.CELERY_RESULT_BACKEND) == (
+        "redis://red-abc123:6379/10",
+        "redis://red-abc123:6379/11",
+        "redis://red-abc123:6379/12",
+    )
+
+
+def test_without_keyvalue_url_the_local_urls_stay() -> None:
+    # The local .env: /0, /1, /2 must not move.
+    s = Settings(  # type: ignore[call-arg]
+        _env_file=None, DATABASE_URL="postgresql://u:p@h/d", SECRET_KEY=SECRET,
+        REDIS_URL="redis://127.0.0.1:6379/0", CELERY_BROKER_URL="redis://127.0.0.1:6379/1",
+        CELERY_RESULT_BACKEND="redis://u:pw@127.0.0.1:6379/2",
+    )
+    assert s.REDIS_URL.endswith(":6379/0")
+    assert s.CELERY_BROKER_URL.endswith(":6379/1")
+    assert s.CELERY_RESULT_BACKEND == "redis://u:pw@127.0.0.1:6379/2"
+
+
+def test_celery_really_uses_our_database_numbers_on_render() -> None:
+    # The bug this guards against: Celery reads CELERY_BROKER_URL from the
+    # environment itself. A fresh process with Render's environment must end
+    # up on database 11 (queue) and 12 (results), never on BizPilot's 0.
+    import os
+    import subprocess
+    import sys
+
+    env = {
+        k: v for k, v in os.environ.items()
+        if k not in {"CELERY_BROKER_URL", "CELERY_RESULT_BACKEND", "REDIS_URL"}
+    }
+    env.update(KEYVALUE_URL="redis://red-abc123:6379", KEYVALUE_DB_BASE="10")
+    code = (
+        "from app.workers.celery_app import celery_app as c;"
+        "print(c.conf.broker_url, c.conf.result_backend)"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True
+    ).stdout.split()
+    assert out == ["redis://red-abc123:6379/11", "redis://red-abc123:6379/12"]
+
+
 def test_links_in_emails_use_the_render_address(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://servicedesk.onrender.com")
     monkeypatch.delenv("FRONTEND_URL", raising=False)
