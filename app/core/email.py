@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import aiosmtplib
+import httpx
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.core.config import settings
@@ -33,6 +34,10 @@ async def send_email(
     html_body: str,
     text_body: str,
 ) -> None:
+    if settings.BREVO_API_KEY:
+        await _send_with_brevo(to=to, subject=subject, html_body=html_body, text_body=text_body)
+        return
+
     if not settings.SMTP_USER and not settings.is_production:
         logger.warning("SMTP not configured - printing email instead of sending")
         print("\n" + "=" * 70)
@@ -63,6 +68,41 @@ async def send_email(
     except Exception:
         logger.exception("email_failed to=%s subject=%s", to, subject)
         raise
+
+
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
+
+
+class EmailServiceUnavailable(Exception):
+    """Brevo answered 5xx or 429: worth trying again later (Celery retries)."""
+
+
+class EmailRejected(Exception):
+    """Brevo answered 4xx (bad key, unverified sender...): retrying will not help."""
+
+
+# HTTPS (port 443) instead of SMTP: Render's free plan blocks SMTP ports.
+async def _send_with_brevo(*, to: str, subject: str, html_body: str, text_body: str) -> None:
+    payload = {
+        "sender": {"name": settings.MAIL_FROM_NAME, "email": settings.MAIL_FROM},
+        "to": [{"email": to}],
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.post(
+            BREVO_URL,
+            json=payload,
+            headers={"api-key": settings.BREVO_API_KEY, "accept": "application/json"},
+        )
+    if response.status_code == 429 or response.status_code >= 500:
+        raise EmailServiceUnavailable(f"Brevo {response.status_code}")
+    if response.status_code >= 400:
+        # Log Brevo's reason (e.g. "sender not valid"), never the API key.
+        logger.error("email_rejected to=%s status=%s body=%s", to, response.status_code, response.text[:300])
+        raise EmailRejected(f"Brevo {response.status_code}")
+    logger.info("email_sent via=brevo to=%s subject=%s", to, subject)
 
 
 # The Three Messages

@@ -1,11 +1,19 @@
 import asyncio
 
 import aiosmtplib
+import httpx
 
 from app.core import email
 from app.workers.celery_app import celery_app
 
-RETRYABLE = (aiosmtplib.SMTPException, OSError)
+# Network trouble or a busy provider: try again. EmailRejected (bad API key,
+# unverified sender) is NOT here - five retries would fail five times.
+RETRYABLE = (
+    aiosmtplib.SMTPException,
+    OSError,
+    httpx.TransportError,
+    email.EmailServiceUnavailable,
+)
 
 
 RETRY_OPTIONS = {

@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -31,11 +32,13 @@ class Settings(BaseSettings):
     RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Database
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_DB: str
+    # POSTGRES_* feed docker-compose only, TEST_DATABASE_URL only pytest:
+    # a hosted server (Render) has neither, so they are optional here.
+    POSTGRES_USER: str = ""
+    POSTGRES_PASSWORD: str = ""
+    POSTGRES_DB: str = ""
     DATABASE_URL: str
-    TEST_DATABASE_URL: str
+    TEST_DATABASE_URL: str = ""
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_TIMEOUT: int = 30
@@ -56,13 +59,36 @@ class Settings(BaseSettings):
     MAIL_FROM: str = "noreply@servicedesk.local"
     MAIL_FROM_NAME: str = "ServiceDesk"
     SMTP_STARTTLS: bool = True
+    # Set = send through Brevo's HTTPS API instead of SMTP. Needed on Render's
+    # free plan, which blocks outgoing SMTP ports (25, 465, 587). MAIL_FROM
+    # must then be a sender verified in Brevo.
+    BREVO_API_KEY: str = ""
 
     # Uploads
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     MAX_UPLOAD_MB: int = 10
-    # URLs
-    FRONTEND_URL: str = "http://localhost:5173"
-    BACKEND_URL: str = "http://localhost:8000"
+    # URLs. On Render both default to RENDER_EXTERNAL_URL, which Render sets
+    # to the service's public https address: the frontend is served by this
+    # same app there, so the links in emails point at the right place.
+    FRONTEND_URL: str = Field(
+        default_factory=lambda: os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:5173")
+    )
+    BACKEND_URL: str = Field(
+        default_factory=lambda: os.environ.get("RENDER_EXTERNAL_URL", "http://localhost:8000")
+    )
+    # The built React app (npm run build). Served by FastAPI when it exists.
+    FRONTEND_DIST: Path = BASE_DIR / "frontend" / "dist"
+
+    # Hosts hand out "postgres://..." or "postgresql://..." URLs; SQLAlchemy
+    # async needs "postgresql+asyncpg://...". Fixing it here means the same
+    # URL Render gives us works without editing it by hand.
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def use_asyncpg_driver(cls, v: str) -> str:
+        for prefix in ("postgres://", "postgresql://"):
+            if v.startswith(prefix):
+                return "postgresql+asyncpg://" + v[len(prefix):]
+        return v
 
     # validator run when settings are loaded
     @field_validator("SECRET_KEY")

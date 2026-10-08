@@ -25,6 +25,7 @@ from app.core.cache import redis_client
 from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.db.session import check_database_connection, engine
+from app.frontend import mount_frontend
 from app.realtime.listener import listen_forever
 
 logging.basicConfig(
@@ -109,9 +110,13 @@ app.add_middleware(
 )
 
 #  SYSTEM ENDPOINTS
-@app.get("/", include_in_schema=False)
-async def root() -> RedirectResponse:
-    return RedirectResponse(url="/docs")
+# With a frontend build (Render) "/" is the React app - see the end of this
+# file. Without one (development) it sends you to the API docs.
+if not (settings.FRONTEND_DIST / "index.html").is_file():
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse(url="/docs")
 
 
 @app.get("/health", tags=["System"], summary="Liveness probe")
@@ -141,4 +146,7 @@ app.include_router(users_router, prefix=settings.API_V1_PREFIX)
 app.include_router(realtime_router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications_router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+
+#  FRONTEND - last, because its catch-all route would hide anything after it.
+mount_frontend(app, settings.FRONTEND_DIST)
 

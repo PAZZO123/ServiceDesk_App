@@ -1,0 +1,23 @@
+# Keep the build context small and never bake secrets or local data into
+# the image.
+.env
+.git
+.github
+.claude
+.venv
+venv
+**/__pycache__
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+uploads
+celerybeat-schedule*
+frontend/node_modules
+frontend/dist
+tests
+docker
+HANDOVER.md
+Backup_model.txt
+roadmap.txt

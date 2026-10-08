@@ -1,0 +1,76 @@
+# ============================================================
+#  Render Blueprint: everything ServiceDesk needs, on the FREE plan.
+#  Render dashboard -> New -> Blueprint -> pick this repo.
+#
+#  Free plan limits (render.com/docs/free), accepted for a demo:
+#  - the web service sleeps after 15 min without visitors (~1 min to wake)
+#  - Postgres is deleted 30 days after creation
+#  - Key Value (Redis) is memory only: queued jobs are lost on restart
+#  - no disk: uploaded files are lost on every deploy/restart
+#  - no SMTP: email goes through Brevo's HTTPS API (BREVO_API_KEY)
+#  All three services must be in the same region to talk privately.
+# ============================================================
+
+services:
+  - type: web
+    name: servicedesk
+    runtime: docker
+    plan: free
+    region: frankfurt # closest Render region to Kigali
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true # every push to main redeploys
+    envVars:
+      - key: ENVIRONMENT
+        value: production # hides /docs, strict CORS
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true # random, made once by Render, never in git
+      - key: DATABASE_URL
+        fromDatabase:
+          name: servicedesk-db
+          property: connectionString # config.py adds +asyncpg
+      - key: DB_POOL_SIZE
+        value: "5" # small instance, small pool
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: servicedesk-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: keyvalue
+          name: servicedesk-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: keyvalue
+          name: servicedesk-redis
+          property: connectionString
+      # sync: false = Render asks YOU for the value when the Blueprint is
+      # created. Secrets never go in this file.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false # the sender address you verified in Brevo
+      - key: ADMIN_EMAIL
+        sync: false # optional: your account, made admin on the next start
+      - key: DEMO_PASSWORD
+        sync: false # optional: creates the demo accounts with this password
+
+  - type: keyvalue
+    name: servicedesk-redis
+    plan: free
+    region: frankfurt
+    maxmemoryPolicy: noeviction # a full Redis must refuse, not drop queued emails
+    ipAllowList: [] # no access from the internet; the web service uses the private network
+
+databases:
+  - name: servicedesk-db
+    plan: free
+    region: frankfurt
+    databaseName: servicedesk
+    user: servicedesk
