@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "api-demo",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["C:/Users/USER/AppData/Local/Temp/claude/sd_check/ui_demo/run_demo_api.py"],
+      "port": 8011
+    },
+    {
+      "name": "web-demo",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set API_TARGET=http://127.0.0.1:8011&& npm --prefix frontend run dev -- --port 5174 --strictPort"],
+      "port": 5174
+    }
+  ]
+}
