@@ -11,7 +11,7 @@ from app.models.audit import AuditLog, RefreshToken
 from app.models.user import User
 from tests.conftest import PASSWORD, MakeUser, auth
 
-NEW_PASSWORD = "Brand-New-Pass-7"
+NEW_PASSWORD = ""
 
 
 async def login(client: AsyncClient, email: str, password: str = PASSWORD) -> dict:
